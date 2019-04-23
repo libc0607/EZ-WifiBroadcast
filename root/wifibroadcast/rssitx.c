@@ -110,8 +110,8 @@ static int open_sock (char *ifname) {
 
     sock = socket (AF_PACKET, SOCK_RAW, 0);
     if (sock == -1) {
-	fprintf(stderr, "Error:\tSocket failed\n");
-	exit(1);
+		fprintf(stderr, "Error:\tSocket failed\n");
+		exit(1);
     }
 
     ll_addr.sll_family = AF_PACKET;
@@ -121,23 +121,23 @@ static int open_sock (char *ifname) {
     strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 
     if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) {
-	fprintf(stderr, "Error:\tioctl(SIOCGIFINDEX) failed\n");
-	exit(1);
+		fprintf(stderr, "Error:\tioctl(SIOCGIFINDEX) failed\n");
+		exit(1);
     }
 
     ll_addr.sll_ifindex = ifr.ifr_ifindex;
 
     if (ioctl(sock, SIOCGIFHWADDR, &ifr) < 0) {
-	fprintf(stderr, "Error:\tioctl(SIOCGIFHWADDR) failed\n");
-	exit(1);
+		fprintf(stderr, "Error:\tioctl(SIOCGIFHWADDR) failed\n");
+		exit(1);
     }
 
     memcpy(ll_addr.sll_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 
     if (bind (sock, (struct sockaddr *)&ll_addr, sizeof(ll_addr)) == -1) {
-	fprintf(stderr, "Error:\tbind failed\n");
-	close(sock);
-	exit(1);
+		fprintf(stderr, "Error:\tbind failed\n");
+		close(sock);
+		exit(1);
     }
 
     if (sock == -1 ) {
@@ -152,7 +152,7 @@ static int open_sock (char *ifname) {
 
 
 void sendRSSI(int sock, telemetry_data_t *td) {
-	if(td->rx_status != NULL) {
+	if (td->rx_status != NULL) {
 		long double a[4], b[4];
 		FILE *fp;
 
@@ -164,27 +164,37 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 //		printf("num_cards:%d num_cards_rc:%d\n", number_cards,number_cards_rc);
 
 //		no_signal=true;
-//                for(cardcounter=0; cardcounter<number_cards; ++cardcounter) {
-//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) { printf("card[%i] signal good\n",cardcounter); };
+//      for(cardcounter=0; cardcounter<number_cards; ++cardcounter) {
+//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) { 
+//				printf("card[%i] signal good\n",cardcounter); 
+//			}
 //		    printf("dbm[%i]: %d  \n",cardcounter, td->rx_status->adapter[cardcounter].current_signal_dbm);
 //		    if (td->rx_status->adapter[cardcounter].signal_good == 1) {
-//                	if (best_dbm < td->rx_status->adapter[cardcounter].current_signal_dbm) best_dbm = td->rx_status->adapter[cardcounter].current_signal_dbm;
+//              if (best_dbm < td->rx_status->adapter[cardcounter].current_signal_dbm) 
+//					best_dbm = td->rx_status->adapter[cardcounter].current_signal_dbm;
 //		    }
-//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) no_signal=false;
-//                }
+//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) 
+//				no_signal=false;
+//          }
 
 		no_signal_rc=true;
-                for(cardcounter=0; cardcounter<number_cards_rc; ++cardcounter) {
-		    if (td->rx_status_rc->adapter[cardcounter].signal_good == 1) { printf("card[%i] rc signal good\n",cardcounter); };
+		for (cardcounter=0; cardcounter<number_cards_rc; ++cardcounter) {
+		    if (td->rx_status_rc->adapter[cardcounter].signal_good == 1) { 
+				printf("card[%i] rc signal good\n",cardcounter); 
+			}
 		    printf("dbm_rc[%i]: %d\n",cardcounter, td->rx_status_rc->adapter[cardcounter].current_signal_dbm);
-		    if (td->rx_status_rc->adapter[cardcounter].signal_good == 1) {
-                	if (best_dbm_rc < td->rx_status_rc->adapter[cardcounter].current_signal_dbm) best_dbm_rc = td->rx_status_rc->adapter[cardcounter].current_signal_dbm;
+			if (td->rx_status_rc->adapter[cardcounter].signal_good == 1) {
+				if (best_dbm_rc < td->rx_status_rc->adapter[cardcounter].current_signal_dbm) 
+					best_dbm_rc = td->rx_status_rc->adapter[cardcounter].current_signal_dbm;
 		    }
-		    if (td->rx_status_rc->adapter[cardcounter].signal_good == 1) no_signal_rc=false;
-                }
+		    if (td->rx_status_rc->adapter[cardcounter].signal_good == 1) 
+				no_signal_rc = false;
+			}
 
-		if (no_signal_rc == false) { printf("rc signal good   "); };
-		printf("best_dbm_rc:%d\n",best_dbm_rc);
+		if (no_signal_rc == false) {
+			printf("rc signal good   "); 
+		}
+		printf("best_dbm_rc:%d\n", best_dbm_rc);
 
 		if (no_signal == false) {
 		    framedata.signal = best_dbm;
@@ -204,20 +214,23 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 		framedata.injection_fail_cnt = td->tx_status->injection_fail_cnt;
 		framedata.injection_time_block = td->tx_status->injection_time_block;
 
-    		fp = fopen("/proc/stat","r");
-    		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);
-    		fclose(fp);
-    		usleep(333333); // send about 3 times per second
-    		fp = fopen("/proc/stat","r");
-    		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&b[0],&b[1],&b[2],&b[3]);
-    		fclose(fp);
+		fp = fopen("/proc/stat","r");
+		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);
+		fclose(fp);
+		usleep(333333); // send about 3 times per second
+		fp = fopen("/proc/stat","r");
+		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&b[0],&b[1],&b[2],&b[3]);
+		fclose(fp);
 		framedata.cpuload = (((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3]))) * 100;
 
-		fp = fopen("/sys/class/thermal/thermal_zone0/temp","r");
+		// Do not send temp on OpenWrt by default		
 		int temp = 0;
-		fscanf(fp,"%d",&temp);
-		fclose(fp);
-		//fprintf(stderr,"temp: %d\n",temp/1000);
+		fp = fopen("/tmp/wbc_temp","r");
+		if (fp) {
+			fscanf(fp,"%d",&temp);
+			fclose(fp);
+			fprintf(stderr,"temp: %d\n",temp/1000);	
+		}
 		framedata.temp = temp / 1000;
 	}
 
@@ -232,11 +245,14 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 //	printf("lostpackets: %d\n", framedata.lostpackets);
 //	printf("lostpackets_rc: %d\n", framedata.lostpackets_rc);
 	// send three times with different delay in between to increase robustness against packetloss
-	if (write(socks[0], &framedata, 74) < 0 ) fprintf(stderr, "!");
+	if (write(socks[0], &framedata, 74) < 0 ) 
+		fprintf(stderr, "!");
 	usleep(1500);
-	if (write(socks[0], &framedata, 74) < 0 ) fprintf(stderr, "!");
+	if (write(socks[0], &framedata, 74) < 0 ) 
+		fprintf(stderr, "!");
 	usleep(2000);
-	if (write(socks[0], &framedata, 74) < 0 ) fprintf(stderr, "!");
+	if (write(socks[0], &framedata, 74) < 0 ) 
+		fprintf(stderr, "!");
 }
 
 
@@ -244,36 +260,45 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
     int fd = 0;
     fd = shm_open("/wifibroadcast_rx_status_3", O_RDONLY, S_IRUSR | S_IWUSR);
-    if(fd < 0) {
-	fprintf(stderr, "RSSITX: ERROR: Could not open wifibroadcast rx uplink status!\n");
-	exit(1);
+    if (fd < 0) {
+		fprintf(stderr, "RSSITX: ERROR: Could not open wifibroadcast rx uplink status!\n");
+		exit(1);
     }
     void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ, MAP_SHARED, fd, 0);
-    if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+    if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
     return (wifibroadcast_rx_status_t*)retval;
 }
 
 wifibroadcast_rx_status_t_rc *telemetry_wbc_status_memory_open_rc(void) {
     int fd = 0;
     fd = shm_open("/wifibroadcast_rx_status_rc", O_RDONLY, S_IRUSR | S_IWUSR);
-    if(fd < 0) {
-	fprintf(stderr, "RSSITX: ERROR: Could not open wifibroadcast R/C status!\n");
-	exit(1);
+    if (fd < 0) {
+		fprintf(stderr, "RSSITX: ERROR: Could not open wifibroadcast R/C status!\n");
+		exit(1);
     }
     void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_rc), PROT_READ, MAP_SHARED, fd, 0);
-    if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+    if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
     return (wifibroadcast_rx_status_t_rc*)retval;
 }
 
 wifibroadcast_tx_status_t *telemetry_wbc_status_memory_open_tx(void) {
     int fd = 0;
     fd = shm_open("/wifibroadcast_tx_status_0", O_RDONLY, S_IRUSR | S_IWUSR);
-    if(fd < 0) {
-	fprintf(stderr, "RSSITX: ERROR: Could not open wifibroadcast tx status!\n");
-	exit(1);
+    if (fd < 0) {
+		fprintf(stderr, "RSSITX: ERROR: Could not open wifibroadcast tx status!\n");
+		exit(1);
     }
     void *retval = mmap(NULL, sizeof(wifibroadcast_tx_status_t), PROT_READ, MAP_SHARED, fd, 0);
-    if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+    if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
     return (wifibroadcast_tx_status_t*)retval;
 }
 
@@ -288,46 +313,48 @@ int main (int argc, char *argv[]) {
 	setpriority(PRIO_PROCESS, 0, 10);
 
 	int done = 1;
+	FILE * pFile;
+	int bitrate_kbit;
+	int bitrate_measured_kbit;
+	int cts;
 
 //	fprintf(stderr,"RSSI TX started\n");
 	socks[0] = open_sock(argv[1]);
-
-	FILE * pFile;
-	int bitrate_kbit;
-	pFile = fopen ("/tmp/bitrate_kbit","r");
-	if(NULL == pFile) {
-    	    perror("ERROR: Could not open /tmp/bitrate_kbit");
-    	    exit(EXIT_FAILURE);
+	
+	pFile = fopen ("/tmp/bitrate_kbit", "r");
+	if (NULL == pFile) {
+		perror("ERROR: Could not open /tmp/bitrate_kbit");
+		exit(EXIT_FAILURE);
 	}
-        fscanf(pFile, "%i\n", &bitrate_kbit);
+    fscanf(pFile, "%i\n", &bitrate_kbit);
 //	printf("bitrate_kbit: %i\n", bitrate_kbit);
-	fclose (pFile);
+	fclose(pFile);
 
-	int bitrate_measured_kbit;
-	pFile = fopen ("/tmp/bitrate_measured_kbit","r");
-	if(NULL == pFile) {
-    	    perror("ERROR: Could not open /tmp/measured_kbit");
-    	    exit(EXIT_FAILURE);
+	
+	pFile = fopen ("/tmp/bitrate_measured_kbit", "r");
+	if (NULL == pFile) {
+		perror("ERROR: Could not open /tmp/measured_kbit");
+		exit(EXIT_FAILURE);
 	}
 	fscanf(pFile, "%i\n", &bitrate_measured_kbit);
 //	printf("bitrate_measured_kbit: %i\n", bitrate_measured_kbit);
-	fclose (pFile);
+	fclose(pFile);
 
-	int cts;
-	pFile = fopen ("/tmp/cts","r");
+
+	pFile = fopen ("/tmp/cts", "r");
 	if(NULL == pFile) {
-    	    perror("ERROR: Could not open /tmp/cts");
-    	    exit(EXIT_FAILURE);
+		perror("ERROR: Could not open /tmp/cts");
+		exit(EXIT_FAILURE);
 	}
 	fscanf(pFile, "%i\n", &cts);
 //	printf("cts: %i\n", cts);
 	fclose (pFile);
 
 	int undervolt;
-	pFile = fopen ("/tmp/undervolt","r");
-	if(NULL == pFile) {
-    	    perror("ERROR: Could not open /tmp/undervolt");
-    	    exit(EXIT_FAILURE);
+	pFile = fopen ("/tmp/undervolt", "r");
+	if (NULL == pFile) {
+		perror("ERROR: Could not open /tmp/undervolt");
+		exit(EXIT_FAILURE);
 	}
 	fscanf(pFile, "%i\n", &undervolt);
 //	printf("undervolt: %i\n", undervolt);
@@ -398,7 +425,7 @@ int main (int argc, char *argv[]) {
 	framedata.undervolt = undervolt;
 
 	while (done) {
-		sendRSSI(sock,&td);
+		sendRSSI(sock, &td);
 	}
 	return 0;
 }

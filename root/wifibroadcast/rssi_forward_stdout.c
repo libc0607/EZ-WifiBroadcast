@@ -1,7 +1,16 @@
-// rssi_forward_stoud by Rodizio.
-// reads rssi from shared memory and writes it to stdout
-// Output Format: #best_dbm,lostpackets\n
-// Example: #-80,100\n
+// rssi_forward_stdout by Rodizio.
+// Modified by @libc0607
+//
+// Function:
+//		reads rssi from shared memory and writes it to stdout
+// Usage: 
+//		rssi_forward_stdout /wifibroadcast_rx_status_0 
+// Output Format: 
+//		#best_dbm,lostpackets\n
+// Example: 
+//		#-114,5141919\n
+// Note:
+// 		lostpacket use 4 bytes - means 1145141919810 (>2^32) will overflow
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +24,8 @@
 #include <endian.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <time.h>
+#include <sys/resource.h>
 
 #include "lib.h"
 
@@ -48,17 +59,13 @@ wifibroadcast_rx_status_t *status_memory_open(char* shm_file)
 int main(int argc, char *argv[]) 
 {
 	wifibroadcast_rx_status_t *t = status_memory_open(argv[1]);
-	int best_dbm = 0;
+	int best_dbm = -128;
 	int lostpackets = 0;
 	int cardcounter = 0;
 	int number_cards = t->wifi_adapter_cnt;
 
 	for(;;) {
-		best_dbm = -128;
-		for(cardcounter = 0; cardcounter < number_cards; ++cardcounter) {
-			if (best_dbm < t->adapter[cardcounter].current_signal_dbm) 
-				best_dbm = t->adapter[cardcounter].current_signal_dbm;
-		}
+		best_dbm = t->adapter[cardcounter].current_signal_dbm;
 		lostpackets = t->lost_packet_cnt;
 		fprintf(stdout, "#%d,%d\n", best_dbm, lostpackets);
 		usleep(100000);

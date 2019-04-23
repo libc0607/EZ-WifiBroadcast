@@ -19,6 +19,7 @@
 #include "radiotap.h"
 #include <time.h>
 #include <sys/resource.h>
+#include <limits.h>
 
 #define MAX_PACKET_LENGTH 4192
 #define MAX_USER_PACKET_LENGTH 2278

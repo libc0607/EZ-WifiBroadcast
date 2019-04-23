@@ -34,6 +34,7 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <getopt.h>
+#include <limits.h>
 
 
 #define MAX_PACKET_LENGTH 4192

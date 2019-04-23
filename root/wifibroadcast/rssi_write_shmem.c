@@ -1,8 +1,14 @@
 // rssi_write_shmem by Rodizio
-// reads rssi from stdin and writes it to shared memory
-
+// Modified by @libc0607
+//
+// Function:
+// 		reads rssi from stdin and writes it to shared memory
+//
 // Usage: 
-//		echo "#-10,2000" | rssi_write_shmem  #(dbm=-10, lost=2000)
+//		echo "#-10,2000" | rssi_write_shmem /wifibroadcast_rx_status_0 
+//
+//		Write #(dbm=-10, lost=2000) to shmem /wifibroadcast_rx_status_0
+
 
 #include "lib.h"
 #include "wifibroadcast.h"
@@ -58,8 +64,8 @@ int main(int argc, char *argv[])
 	for(;;) {
 	    usleep(20000);
 		scanf("#%d,%d", &rx_status->adapter[0].current_signal_dbm, &rx_status->lost_packet_cnt);
-		printf("dbm: %d\n", rx_status->adapter[0].current_signal_dbm);
-		printf("lost: %d\n", rx_status->lost_packet_cnt);
+		//printf("dbm: %d\n", rx_status->adapter[0].current_signal_dbm);
+		//printf("lost: %d\n", rx_status->lost_packet_cnt);
 	}
 	return 0;
 }
