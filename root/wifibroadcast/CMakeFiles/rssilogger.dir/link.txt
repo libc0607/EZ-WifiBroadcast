@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/rssilogger.dir/rssilogger.c.o  -o rssilogger -lrt -lpcap 

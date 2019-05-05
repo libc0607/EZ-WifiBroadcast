@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/ftee.dir/ftee.c.o  -o ftee -lrt -lpcap 

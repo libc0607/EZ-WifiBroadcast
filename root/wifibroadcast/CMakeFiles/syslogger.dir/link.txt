@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/syslogger.dir/syslogger.c.o  -o syslogger -lrt -lpcap 

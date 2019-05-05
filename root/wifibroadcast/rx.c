@@ -125,11 +125,11 @@ void open_and_configure_interface(const char *name, int port, monitor_interface_
 		exit(1);
 	}
 	
-	if(pcap_setnonblock(interface->ppcap, 1, szErrbuf) < 0) {
+	if (pcap_setnonblock(interface->ppcap, 1, szErrbuf) < 0) {
 		fprintf(stderr, "Error setting %s to nonblocking mode: %s\n", name, szErrbuf);
 	}
 
-	if(pcap_setdirection(interface->ppcap, PCAP_D_IN) < 0) {
+	if (pcap_setdirection(interface->ppcap, PCAP_D_IN) < 0) {
 		fprintf(stderr, "Error setting %s direction\n", name);
 	}
 
@@ -153,6 +153,7 @@ void open_and_configure_interface(const char *name, int port, monitor_interface_
 			fprintf(stderr, "%s\n", szProgram);
 			fprintf(stderr, "%s\n", pcap_geterr(interface->ppcap));
 		} else {
+			// ?
 		}
 		pcap_freecode(&bpfprogram);
 	}
@@ -199,22 +200,22 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
     int tx_restart = (block_num + 128*param_block_buffers < max_block_num);
     if((block_num > max_block_num || tx_restart) && crc_correct) {
         if(tx_restart) {
-	    rx_status->tx_restart_cnt++;
-	    rx_status->received_block_cnt = 0;
-	    rx_status->damaged_block_cnt = 0;
-	    rx_status->received_packet_cnt = 0;
-	    rx_status->lost_packet_cnt = 0;
-	    rx_status->kbitrate = 0;
-	    int g;
-	    for(g=0; g<MAX_PENUMBRA_INTERFACES; ++g) {
-		rx_status->adapter[g].received_packet_cnt = 0;
-		rx_status->adapter[g].wrong_crc_cnt = 0;
-		rx_status->adapter[g].current_signal_dbm = -126;
-		rx_status->adapter[g].signal_good = 0;
-	    }
-//          fprintf(stderr, "TX re-start detected\n");
-            block_buffer_list_reset(block_buffer_list, param_block_buffers, param_data_packets_per_block + param_fec_packets_per_block);
-        }
+			rx_status->tx_restart_cnt++;
+			rx_status->received_block_cnt = 0;
+			rx_status->damaged_block_cnt = 0;
+			rx_status->received_packet_cnt = 0;
+			rx_status->lost_packet_cnt = 0;
+			rx_status->kbitrate = 0;
+			int g;
+			for(g=0; g<MAX_PENUMBRA_INTERFACES; ++g) {
+				rx_status->adapter[g].received_packet_cnt = 0;
+				rx_status->adapter[g].wrong_crc_cnt = 0;
+				rx_status->adapter[g].current_signal_dbm = -126;
+				rx_status->adapter[g].signal_good = 0;
+			}
+	//          fprintf(stderr, "TX re-start detected\n");
+				block_buffer_list_reset(block_buffer_list, param_block_buffers, param_data_packets_per_block + param_fec_packets_per_block);
+		}
 
         //first, find the minimum block num in the buffers list. this will be the block that we replace
         int min_block_num = INT_MAX;
@@ -264,37 +265,37 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
             const int datas_missing_c = datas_missing;
             const int datas_corrupt_c = datas_corrupt;
             const int fecs_missing_c = fecs_missing;
-//            const int fecs_corrupt_c = fecs_corrupt;
+//          const int fecs_corrupt_c = fecs_corrupt;
 
-	    int packets_lost_in_block = 0;
-//            int good_fecs = good_fecs_c;
+			int packets_lost_in_block = 0;
+//          int good_fecs = good_fecs_c;
             //the following three fields are infos for fec_decode
             unsigned int fec_block_nos[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK];
             unsigned int erased_blocks[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK];
             unsigned int nr_fec_blocks = 0;
 
             if(datas_missing_c + fecs_missing_c > 0) {
-		packets_lost_in_block = (datas_missing_c + fecs_missing_c);
-                rx_status->lost_packet_cnt = rx_status->lost_packet_cnt + packets_lost_in_block;
-	    }
+				packets_lost_in_block = (datas_missing_c + fecs_missing_c);
+				rx_status->lost_packet_cnt = rx_status->lost_packet_cnt + packets_lost_in_block;
+			}
 
-	    rx_status->received_packet_cnt = rx_status->received_packet_cnt + param_data_packets_per_block + param_fec_packets_per_block - packets_lost_in_block;
+			rx_status->received_packet_cnt = rx_status->received_packet_cnt + param_data_packets_per_block + param_fec_packets_per_block - packets_lost_in_block;
 
-	    packets_missing_last = packets_missing;
-	    packets_missing = packets_lost_in_block;
+			packets_missing_last = packets_missing;
+			packets_missing = packets_lost_in_block;
 
-	    if (packets_missing < packets_missing_last) { // if we have less missing packets than last time, ignore
-		packets_missing = packets_missing_last;
-	    }
+			if (packets_missing < packets_missing_last) { // if we have less missing packets than last time, ignore
+				packets_missing = packets_missing_last;
+			}
 
-	    pm_now = current_timestamp();
-	    if (pm_now - pm_prev_time > 220) {
-		pm_prev_time = current_timestamp();
-//		fprintf(stderr, "miss: %d   last: %d\n", packets_missing,packets_missing_last);
-		rx_status->lost_per_block_cnt = packets_missing;
-		packets_missing = 0;
-		packets_missing_last = 0;
-	    }
+			pm_now = current_timestamp();
+			if (pm_now - pm_prev_time > 220) {
+				pm_prev_time = current_timestamp();
+				//fprintf(stderr, "miss: %d   last: %d\n", packets_missing,packets_missing_last);
+				rx_status->lost_per_block_cnt = packets_missing;
+				packets_missing = 0;
+				packets_missing_last = 0;
+			}
 
             fi = 0;
             di = 0;
@@ -302,16 +303,24 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
             //look for missing DATA and replace them with good FECs
             while(di < param_data_packets_per_block && fi < param_fec_packets_per_block) {
                 //if this data is fine we go to the next
-                if(data_pkgs[di]->valid && data_pkgs[di]->crc_correct) { di++; continue; }
+                if(data_pkgs[di]->valid && data_pkgs[di]->crc_correct) { 
+					di++; 
+					continue; 
+				}
                 //if this DATA is corrupt and there are less good fecs than missing datas we cannot do anything for this data
 //                if(data_pkgs[di]->valid && !data_pkgs[di]->crc_correct && good_fecs <= datas_missing) { di++; continue; } // not needed as we dont receive fcs fail frames
                 //if this FEC is not received we go on to the next
-                if(!fec_pkgs[fi]->valid) { fi++; continue; }
+                if(!fec_pkgs[fi]->valid) { 
+					fi++; 
+					continue; 
+				}
                 //if this FEC is corrupted and there are more lost packages than good fecs we should replace this DATA even with this corrupted FEC // not needed as we dont receive fcs fail frames
 //                if(!fec_pkgs[fi]->crc_correct && datas_missing > good_fecs) { fi++; continue; }
 
-                if(!data_pkgs[di]->valid) datas_missing--;
-//                else if(!data_pkgs[di]->crc_correct) datas_corrupt--; // not needed as we dont receive fcs fail frames
+                if(!data_pkgs[di]->valid) 
+					datas_missing--;
+//              else if(!data_pkgs[di]->crc_correct) 
+//					datas_corrupt--; // not needed as we dont receive fcs fail frames
 
 //               if(fec_pkgs[fi]->crc_correct) good_fecs--; // not needed as we dont receive fcs fail frames
 
@@ -333,25 +342,26 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
             }
 
             //decode data and write it to STDOUT
-            fec_decode((unsigned int) param_packet_length, data_blocks, param_data_packets_per_block, fec_blocks, fec_block_nos, erased_blocks, nr_fec_blocks);
+            fec_decode((unsigned int) param_packet_length, data_blocks, 
+							param_data_packets_per_block, fec_blocks, fec_block_nos, 
+							erased_blocks, nr_fec_blocks);
             for(i=0; i<param_data_packets_per_block; ++i) {
                 payload_header_t *ph = (payload_header_t*)data_blocks[i];
-
-                if(!reconstruction_failed || data_pkgs[i]->valid) {
+                if (!reconstruction_failed || data_pkgs[i]->valid) {
                     //if reconstruction did fail, the data_length value is undefined. better limit it to some sensible value
-                    if(ph->data_length > param_packet_length) ph->data_length = param_packet_length;
-
+                    if (ph->data_length > param_packet_length) 
+						ph->data_length = param_packet_length;
                     write(STDOUT_FILENO, data_blocks[i] + sizeof(payload_header_t), ph->data_length);
-		    fflush(stdout);
-		    now = current_timestamp();
-		    bytes_written = bytes_written + ph->data_length;
-		    if (now - prev_time > 500) {
-			prev_time = current_timestamp();
-    			kbitrate = ((bytes_written * 8) / 1024) * 2;
-//    			fprintf(stderr, "\t\tkbitrate:%d\n", kbitrate);
-        		rx_status->kbitrate = kbitrate;
-			bytes_written = 0;
-		    }
+					fflush(stdout);
+					now = current_timestamp();
+					bytes_written = bytes_written + ph->data_length;
+					if (now - prev_time > 500) {
+						prev_time = current_timestamp();
+						kbitrate = ((bytes_written * 8) / 1024) * 2;
+		//    			fprintf(stderr, "\t\tkbitrate:%d\n", kbitrate);
+						rx_status->kbitrate = kbitrate;
+						bytes_written = 0;
+					}
                 }
             }
 
@@ -363,9 +373,8 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
                 p->len = 0;
             }
         }
-
-    block_buffer_list[min_block_num_idx].block_num = block_num;
-    max_block_num = block_num;
+		block_buffer_list[min_block_num_idx].block_num = block_num;
+		max_block_num = block_num;
     }
 
     //find the buffer into which we have to write this packet
@@ -384,8 +393,8 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
 
         //only overwrite packets where the checksum is not yet correct. otherwise the packets are already received correctly
         if(packet_buffer_list[packet_num].crc_correct == 0) {
-//	    fprintf(stderr, "rx INFO: packet_buffer_list[packet_numer].crc_correct=0");
-	    memcpy(packet_buffer_list[packet_num].data, data, data_len);
+//	    	fprintf(stderr, "rx INFO: packet_buffer_list[packet_numer].crc_correct=0");
+			memcpy(packet_buffer_list[packet_num].data, data, data_len);
             packet_buffer_list[packet_num].len = data_len;
             packet_buffer_list[packet_num].valid = 1;
             packet_buffer_list[packet_num].crc_correct = crc_correct;
@@ -395,7 +404,9 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
 }
 
 
-void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer_list, int adapter_no) {
+void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer_list, 
+																	int adapter_no) 
+{
 	struct pcap_pkthdr * ppcapPacketHeader = NULL;
 	struct ieee80211_radiotap_iterator rti;
 	PENUMBRA_RADIOTAP_DATA prd;
@@ -406,7 +417,8 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 	int retval;
 	int u16HeaderLen;
 
-	retval = pcap_next_ex(interface->ppcap, &ppcapPacketHeader, (const u_char**)&pu8Payload); // receive
+	retval = pcap_next_ex(interface->ppcap, &ppcapPacketHeader, 
+								(const u_char**)&pu8Payload); // receive
 
 	if (retval < 0) {
 		if (strcmp("The interface went down",pcap_geterr(interface->ppcap)) == 0) {
@@ -520,7 +532,8 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 }
 
 
-void status_memory_init(wifibroadcast_rx_status_t *s) {
+void status_memory_init(wifibroadcast_rx_status_t *s) 
+{
 	s->received_block_cnt = 0;
 	s->damaged_block_cnt = 0;
 	s->received_packet_cnt = 0;
@@ -539,7 +552,8 @@ void status_memory_init(wifibroadcast_rx_status_t *s) {
 }
 
 
-wifibroadcast_rx_status_t *status_memory_open(void) {
+wifibroadcast_rx_status_t *status_memory_open(void) 
+{
 	char buf[128];
 	int fd;
 	
@@ -621,8 +635,9 @@ int main(int argc, char *argv[]) {
 	if (optind >= argc)
 		usage();
 
-	if(param_packet_length > MAX_USER_PACKET_LENGTH) {
-		printf("Packet length is limited to %d bytes (you requested %d bytes)\n", MAX_USER_PACKET_LENGTH, param_packet_length);
+	if (param_packet_length > MAX_USER_PACKET_LENGTH) {
+		printf("Packet length is limited to %d bytes (you requested %d bytes)\n", 
+								MAX_USER_PACKET_LENGTH, param_packet_length);
 		return (1);
 	}
 
@@ -641,7 +656,10 @@ int main(int argc, char *argv[]) {
 
 		snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
 		procfile = fopen(path, "r");
-		if(!procfile) {fprintf(stderr,"ERROR: opening %s failed!\n", path); return 0;}
+		if (!procfile) {
+			fprintf(stderr,"ERROR: opening %s failed!\n", path); 
+			return 0;
+		}
 		fgets(line, 100, procfile); // read the first line
 		fgets(line, 100, procfile); // read the 2nd line
 		if(strncmp(line, "DRIVER=ath9k_htc", 16) == 0) { // it's an atheros card
@@ -663,28 +681,28 @@ int main(int argc, char *argv[]) {
 
 	//block buffers contain both the block_num as well as packet buffers for a block.
 	block_buffer_list = malloc(sizeof(block_buffer_t) * param_block_buffers);
-	for(i=0; i<param_block_buffers; ++i)
-	{
-    	    block_buffer_list[i].block_num = -1;
-    	    block_buffer_list[i].packet_buffer_list = lib_alloc_packet_buffer_list(param_data_packets_per_block+param_fec_packets_per_block, MAX_PACKET_LENGTH);
+	for(i=0; i<param_block_buffers; ++i) {
+		block_buffer_list[i].block_num = -1;
+		block_buffer_list[i].packet_buffer_list = lib_alloc_packet_buffer_list(
+										param_data_packets_per_block+param_fec_packets_per_block, 
+										MAX_PACKET_LENGTH);
 	}
 
 	for(;;) {
-
 		packetcounter_ts_now[i] = current_timestamp();
 		if (packetcounter_ts_now[i] - packetcounter_ts_prev[i] > 220) {
 		    packetcounter_ts_prev[i] = current_timestamp();
 		    for(i=0; i<num_interfaces; ++i) {
-			packetcounter_last[i] = packetcounter[i];
-			packetcounter[i] = rx_status->adapter[i].received_packet_cnt;
-//			fprintf(stderr,"counter:%d last:%d   ",packetcounter[i],packetcounter_last[i]);
-			if (packetcounter[i] == packetcounter_last[i]) {
-			    rx_status->adapter[i].signal_good = 0;
-//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
-			} else {
-			    rx_status->adapter[i].signal_good = 1;
-//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
-			}
+				packetcounter_last[i] = packetcounter[i];
+				packetcounter[i] = rx_status->adapter[i].received_packet_cnt;
+	//			fprintf(stderr,"counter:%d last:%d   ",packetcounter[i],packetcounter_last[i]);
+				if (packetcounter[i] == packetcounter_last[i]) {
+					rx_status->adapter[i].signal_good = 0;
+	//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
+				} else {
+					rx_status->adapter[i].signal_good = 1;
+	//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
+				}
 		    }
 		}
 		fd_set readset;
@@ -693,12 +711,14 @@ int main(int argc, char *argv[]) {
 		to.tv_usec = 1e5; // 100ms
 
 		FD_ZERO(&readset);
-		for(i=0; i<num_interfaces; ++i) FD_SET(interfaces[i].selectable_fd, &readset);
+		for (i=0; i<num_interfaces; ++i) 
+			FD_SET(interfaces[i].selectable_fd, &readset);
 		int n = select(30, &readset, NULL, NULL, &to);
-		if(n == 0) continue;
-		for(i=0; i<num_interfaces; ++i) {
+		if (n == 0) 
+			continue;
+		for (i=0; i<num_interfaces; ++i) {
 			if(FD_ISSET(interfaces[i].selectable_fd, &readset)) {
-            		    process_packet(interfaces + i, block_buffer_list, i);
+				process_packet(interfaces + i, block_buffer_list, i);
 			}
 		}
 	}

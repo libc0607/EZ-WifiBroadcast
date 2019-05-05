@@ -5,9 +5,9 @@
 // 		reads rssi from stdin and writes it to shared memory
 //
 // Usage: 
-//		echo "#-10,2000" | rssi_write_shmem /wifibroadcast_rx_status_0 
+//		echo "#-114,5141919" | rssi_write_shmem /wifibroadcast_rx_status_0 
 //
-//		Write #(dbm=-10, lost=2000) to shmem /wifibroadcast_rx_status_0
+//		Write #(dbm=-114, lost=5141919) to shmem /wifibroadcast_rx_status_0
 
 
 #include "lib.h"
@@ -63,7 +63,8 @@ int main(int argc, char *argv[])
 	rx_status = status_memory_open(argv[1]);
 	for(;;) {
 	    usleep(20000);
-		scanf("#%d,%d", &rx_status->adapter[0].current_signal_dbm, &rx_status->lost_packet_cnt);
+		scanf("#%d,%d", &rx_status->adapter[0].current_signal_dbm, 
+						&rx_status->lost_packet_cnt);
 		//printf("dbm: %d\n", rx_status->adapter[0].current_signal_dbm);
 		//printf("lost: %d\n", rx_status->lost_packet_cnt);
 	}

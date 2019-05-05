@@ -26,7 +26,8 @@ wifibroadcast_rx_status_t *rx_status = NULL;
 wifibroadcast_rx_status_t_rc *rx_status_rc = NULL;
 wifibroadcast_rx_status_t_sysair *rx_status_sysair = NULL;
 
-void status_memory_init(wifibroadcast_rx_status_t *s) {
+void status_memory_init(wifibroadcast_rx_status_t *s) 
+{
 	s->received_block_cnt = 0;
 	s->damaged_block_cnt = 0;
 	s->received_packet_cnt = 0;
@@ -42,7 +43,8 @@ void status_memory_init(wifibroadcast_rx_status_t *s) {
 	}
 }
 
-void status_memory_init_osd(wifibroadcast_rx_status_t *s) {
+void status_memory_init_osd(wifibroadcast_rx_status_t *s) 
+{
 	s->received_block_cnt = 0;
 	s->damaged_block_cnt = 0;
 	s->received_packet_cnt = 0;
@@ -58,7 +60,8 @@ void status_memory_init_osd(wifibroadcast_rx_status_t *s) {
 	}
 }
 
-void status_memory_init_rc(wifibroadcast_rx_status_t_rc *s) {
+void status_memory_init_rc(wifibroadcast_rx_status_t_rc *s) 
+{
 	s->received_block_cnt = 0;
 	s->damaged_block_cnt = 0;
 	s->received_packet_cnt = 0;
@@ -74,7 +77,8 @@ void status_memory_init_rc(wifibroadcast_rx_status_t_rc *s) {
 	}
 }
 
-void status_memory_init_sysair(wifibroadcast_rx_status_t_sysair *s) {
+void status_memory_init_sysair(wifibroadcast_rx_status_t_sysair *s) 
+{
 	s->cpuload = 0;
 	s->temp = 0;
 	s->skipped_fec_cnt = 0;
@@ -88,71 +92,126 @@ void status_memory_init_sysair(wifibroadcast_rx_status_t_sysair *s) {
 }
 
 
-wifibroadcast_rx_status_t *status_memory_open(void) {
+wifibroadcast_rx_status_t *status_memory_open(void) 
+{
 	char buf[128];
 	int fd;
 	sprintf(buf, "/wifibroadcast_rx_status_0");
 	fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) { perror("shm_open"); exit(1); }
-	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) { perror("ftruncate"); exit(1); }
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	if(fd < 0) { 
+		perror("shm_open"); 
+		exit(1); 
+	}
+	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) { 
+		perror("ftruncate"); 
+		exit(1); 
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), 
+						PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
 	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
 	status_memory_init(tretval);
 	return tretval;
 }
 
-wifibroadcast_rx_status_t *status_memory_open_osd(void) {
+wifibroadcast_rx_status_t *status_memory_open_osd(void) 
+{
 	char buf[128];
 	int fd;
 	sprintf(buf, "/wifibroadcast_rx_status_1");
 	fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) { perror("shm_open"); exit(1); }
-	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) { perror("ftruncate"); exit(1); }
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	if(fd < 0) { 
+		perror("shm_open"); 
+		exit(1); 
+	}
+	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) { 
+		perror("ftruncate"); 
+		exit(1); 
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), 
+						PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
 	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
 	status_memory_init(tretval);
 	return tretval;
 }
 
-wifibroadcast_rx_status_t_rc *status_memory_open_rc(void) {
+wifibroadcast_rx_status_t_rc *status_memory_open_rc(void) 
+{
 	char buf[128];
 	int fd;
 	sprintf(buf, "/wifibroadcast_rx_status_rc");
 	fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) { perror("shm_open"); exit(1); }
-	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t_rc)) == -1) { perror("ftruncate"); exit(1); }
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_rc), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	if(fd < 0) { 
+		perror("shm_open"); 
+		exit(1); 
+	}
+	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t_rc)) == -1) { 
+		perror("ftruncate"); 
+		exit(1); 
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_rc), 
+						PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
 	wifibroadcast_rx_status_t_rc *tretval = (wifibroadcast_rx_status_t_rc*)retval;
 	status_memory_init_rc(tretval);
 	return tretval;
 }
 
-wifibroadcast_rx_status_t *status_memory_open_uplink(void) {
+wifibroadcast_rx_status_t *status_memory_open_uplink(void) 
+{
 	char buf[128];
 	int fd;
 	sprintf(buf, "/wifibroadcast_rx_status_uplink");
 	fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) { perror("shm_open"); exit(1); }
-	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) { perror("ftruncate"); exit(1); }
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	if(fd < 0) { 
+		perror("shm_open");
+		exit(1); 
+	}
+	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) { 
+		perror("ftruncate"); 
+		exit(1); 
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), 
+						PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
 	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
 	status_memory_init(tretval);
 	return tretval;
 }
 
-wifibroadcast_rx_status_t_sysair *status_memory_open_sysair(void) {
+wifibroadcast_rx_status_t_sysair *status_memory_open_sysair(void) 
+{
 	char buf[128];
 	int fd;
 	sprintf(buf, "/wifibroadcast_rx_status_sysair");
 	fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) { perror("shm_open"); exit(1); }
-	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t_sysair)) == -1) { perror("ftruncate"); exit(1); }
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_sysair), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	if(fd < 0) { 
+		perror("shm_open"); 
+		exit(1); 
+	}
+	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t_sysair)) == -1) { 
+		perror("ftruncate"); 
+		exit(1);
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_sysair), 
+							PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
 	wifibroadcast_rx_status_t_sysair *tretval = (wifibroadcast_rx_status_t_sysair*)retval;
 	status_memory_init_sysair(tretval);
 	return tretval;
