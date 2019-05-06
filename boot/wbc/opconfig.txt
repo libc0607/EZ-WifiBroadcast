@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+# OpenWrt IP, Username & Password
+#	
+OPENWRT_IP=192.168.1.1
+OPENWRT_USERNAME=root
+OPENWRT_PASSWORD=password
