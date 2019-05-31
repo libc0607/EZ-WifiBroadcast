@@ -1,1 +1,0 @@
-/usr/bin/cc   -rdynamic CMakeFiles/rssi_write_shmem.dir/rssi_write_shmem.c.o  -o rssi_write_shmem -lrt -lpcap 

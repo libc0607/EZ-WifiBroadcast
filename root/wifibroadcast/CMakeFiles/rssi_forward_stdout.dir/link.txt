@@ -1,1 +1,0 @@
-/usr/bin/cc   -rdynamic CMakeFiles/rssi_forward_stdout.dir/rssi_forward_stdout.c.o  -o rssi_forward_stdout -lrt -lpcap 
