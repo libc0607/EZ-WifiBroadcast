@@ -63,8 +63,8 @@ static int open_sock (char *ifname) {
 
     sock = socket (AF_PACKET, SOCK_RAW, 0);
     if (sock == -1) {
-	fprintf(stderr, "Error:\tSocket failed\n");
-	exit(1);
+		fprintf(stderr, "Error:\tSocket failed\n");
+		exit(1);
     }
 
     ll_addr.sll_family = AF_PACKET;
@@ -74,23 +74,23 @@ static int open_sock (char *ifname) {
     strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 
     if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) {
-	fprintf(stderr, "Error:\tioctl(SIOCGIFINDEX) failed\n");
-	exit(1);
+		fprintf(stderr, "Error:\tioctl(SIOCGIFINDEX) failed\n");
+		exit(1);
     }
 
     ll_addr.sll_ifindex = ifr.ifr_ifindex;
 
     if (ioctl(sock, SIOCGIFHWADDR, &ifr) < 0) {
-	fprintf(stderr, "Error:\tioctl(SIOCGIFHWADDR) failed\n");
-	exit(1);
+		fprintf(stderr, "Error:\tioctl(SIOCGIFHWADDR) failed\n");
+		exit(1);
     }
 
     memcpy(ll_addr.sll_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 
     if (bind (sock, (struct sockaddr *)&ll_addr, sizeof(ll_addr)) == -1) {
-	fprintf(stderr, "Error:\tbind failed\n");
-	close(sock);
-	exit(1);
+		fprintf(stderr, "Error:\tbind failed\n");
+		close(sock);
+		exit(1);
     }
 
     if (sock == -1 ) {
@@ -161,8 +161,8 @@ wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
 
     fd = shm_open("/wifibroadcast_rx_status_0", O_RDONLY, S_IRUSR | S_IWUSR);
     if(fd < 0) {
-	fprintf(stderr, "ERROR: Could not open wifibroadcast rx status!\n");
-	exit(1);
+		fprintf(stderr, "ERROR: Could not open wifibroadcast rx status!\n");
+		exit(1);
     }
 
     void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ, MAP_SHARED, fd, 0);
@@ -217,41 +217,42 @@ void sendpacket(uint32_t seqno, uint16_t len, telemetry_data_t *td, int transmis
 	} else { // transmit on all interfaces
 	    int i;
 	    for(i=0; i<num_int; ++i) {
-		if (type[i] == 0) { // Atheros
-//		    fprintf(stderr,"type: Atheros");
-		    // telemetry header (seqno and len)
-		    memcpy(packet_buffer_ath + headers_atheros_len, &header, 6);
-		    // telemetry data
-		    memcpy(packet_buffer_ath + headers_atheros_len + 6, data, len);
-//		    fprintf(stderr," lendata:%d ",len);
-		    if (len < 5) { // if telemetry payload is too short, pad to minimum length
-			padlen = 5 - len;
-//			fprintf(stderr, "padlen: %d ",padlen);
-			memcpy(packet_buffer_ath + headers_atheros_len + 6 + len, dummydata, padlen);
-		    }
-//		    int x = 0;
-//		    int dumplen = 100;
-//		    fprintf(stderr,"buf:");
-//		    for (x=12;x < dumplen; x++) {
-//			fprintf(stderr,"0x%02x ", packet_buffer[x]);
-//		    }
-//		    fprintf(stderr,"\n");
-//		    fprintf(stderr," headers_atheros_len:%d ",headers_atheros_len);
-//		    fprintf(stderr," writelen:%d ",headers_atheros_len + 4 + len);
-		    if (write(socks[i], &packet_buffer_ath, headers_atheros_len + 6 + len + padlen) < 0 ) fprintf(stderr, ".");
-		} else { // Ralink
-//		    fprintf(stderr,"type: Ralink");
-		    // telemetry header (seqno and len)
-		    memcpy(packet_buffer_ral + headers_ralink_len, &header, 6);
-		    // telemetry data
-		    memcpy(packet_buffer_ral + headers_ralink_len + 6, data, len);
-		    if (len < 18) { // pad to minimum length
-			padlen = 18 - len;
-//			fprintf(stderr, "padlen: %d ",padlen);
-			memcpy(packet_buffer_ral + headers_ralink_len + 6 + len, dummydata, padlen);
-		    }
-		    if (write(socks[i], &packet_buffer_ral, headers_ralink_len + 6 + len + padlen) < 0 ) fprintf(stderr, ".");
-		}
+			if (type[i] == 0) { // Atheros
+	//		    fprintf(stderr,"type: Atheros");
+				// telemetry header (seqno and len)
+				memcpy(packet_buffer_ath + headers_atheros_len, &header, 6);
+				// telemetry data
+				memcpy(packet_buffer_ath + headers_atheros_len + 6, data, len);
+	//		    fprintf(stderr," lendata:%d ",len);
+				if (len < 5) { // if telemetry payload is too short, pad to minimum length
+					padlen = 5 - len;
+		//			fprintf(stderr, "padlen: %d ",padlen);
+					memcpy(packet_buffer_ath + headers_atheros_len + 6 + len, dummydata, padlen);
+				}
+	//		    int x = 0;
+	//		    int dumplen = 100;
+	//		    fprintf(stderr,"buf:");
+	//		    for (x=12;x < dumplen; x++) {
+	//			fprintf(stderr,"0x%02x ", packet_buffer[x]);
+	//		    }
+	//		    fprintf(stderr,"\n");
+	//		    fprintf(stderr," headers_atheros_len:%d ",headers_atheros_len);
+	//		    fprintf(stderr," writelen:%d ",headers_atheros_len + 4 + len);
+				if (write(socks[i], &packet_buffer_ath, headers_atheros_len + 6 + len + padlen) < 0 ) 
+					fprintf(stderr, ".");
+			} else { // Ralink
+	//		    fprintf(stderr,"type: Ralink");
+				// telemetry header (seqno and len)
+				memcpy(packet_buffer_ral + headers_ralink_len, &header, 6);
+				// telemetry data
+				memcpy(packet_buffer_ral + headers_ralink_len + 6, data, len);
+				if (len < 18) { // pad to minimum length
+					padlen = 18 - len;
+		//			fprintf(stderr, "padlen: %d ",padlen);
+					memcpy(packet_buffer_ral + headers_ralink_len + 6 + len, dummydata, padlen);
+				}
+				if (write(socks[i], &packet_buffer_ral, headers_ralink_len + 6 + len + padlen) < 0 ) fprintf(stderr, ".");
+			}
 	    }
 	}
 }
@@ -337,19 +338,22 @@ int main(int argc, char *argv[]) {
     while(x < argc && num_interfaces < 5) {
     	snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
         procfile = fopen(path, "r");
-        if(!procfile) {fprintf(stderr,"ERROR: opening %s failed!\n", path); return 0;}
+        if (!procfile) {
+			fprintf(stderr,"ERROR: opening %s failed!\n", path); 
+			return 0;
+		}
         fgets(line, 100, procfile); // read the first line
         fgets(line, 100, procfile); // read the 2nd line
-        if(strncmp(line, "DRIVER=ath9k_htc", 16) == 0) { // it's an atheros card
+        if (strncmp(line, "DRIVER=ath9k_htc", 16) == 0) { // it's an atheros card
             fprintf(stderr, "tx_telemetry: Atheros card detected\n");
-	    type[num_interfaces] = 0;
+			type[num_interfaces] = 0;
         } else { // ralink
             fprintf(stderr, "tx_telemetry: Ralink card detected\n");
-	    type[num_interfaces] = 1;
+			type[num_interfaces] = 1;
         }
-	socks[num_interfaces] = open_sock(argv[x]);
-        ++num_interfaces;
-	++x;
+		socks[num_interfaces] = open_sock(argv[x]);
+		++num_interfaces;
+		++x;
         fclose(procfile);
         usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
     }
@@ -403,14 +407,14 @@ int main(int argc, char *argv[]) {
     // for Atheros use data frames if CTS protection enabled or rts if disabled
     // CTS protection causes R/C transmission to stop for some reason, always use rts frames (i.e. no cts protection)
     //param_cts = 0;
-    if(param_cts == 1) { // use data frames
-	memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
-	memcpy(headers_atheros + sizeof(u8aRadiotapHeader), u8aIeeeHeader_data, sizeof(u8aIeeeHeader_data)); // ieee header
-	headers_atheros_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_data);
+    if (param_cts == 1) { // use data frames
+		memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
+		memcpy(headers_atheros + sizeof(u8aRadiotapHeader), u8aIeeeHeader_data, sizeof(u8aIeeeHeader_data)); // ieee header
+		headers_atheros_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_data);
     } else { // use rts frames
-	memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
-	memcpy(headers_atheros + sizeof(u8aRadiotapHeader), u8aIeeeHeader_rts, sizeof(u8aIeeeHeader_rts)); // ieee header
-	headers_atheros_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_rts);
+		memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
+		memcpy(headers_atheros + sizeof(u8aRadiotapHeader), u8aIeeeHeader_rts, sizeof(u8aIeeeHeader_rts)); // ieee header
+		headers_atheros_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_rts);
     }
 
     // for Ralink always use data short

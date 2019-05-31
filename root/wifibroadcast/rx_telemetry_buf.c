@@ -43,39 +43,38 @@ typedef struct {
 	char payload[400];
 } buffer_t;
 buffer_t buffer[100];
-
-
-//uint32_t seqbuffer[5];
-
 int flagHelp = 0;
-int param_baudrate = 0;
-int param_rc_protocol = 0;
-int param_output = 0;
 int param_port = 0;
 int param_debug = 0;
-char *param_serialport = "none";
-
+static const struct option optiona[] = { 
+	{ "help", no_argument, &flagHelp, 1 }, 
+	{ 0, 0, 0, 0 } 
+};
 uint32_t seqno_telemetry = 0;
 uint8_t seqno_rc = 0;
 uint32_t seqnolast_telemetry = 0;
 uint8_t seqnolast_rc = 0;
-
 int seqnumplayed = 0;
-
 int telemetry_received_yet = 0;
 int rc_received_yet = 0;
-
-
 int port_encoded;
-
 wifibroadcast_rx_status_t *rx_status = NULL;
 wifibroadcast_rx_status_t *rx_status_rc = NULL;
-
 uint16_t sumdcrc = 0;
 uint16_t ibuschecksum = 0;
-
-
 int lastseq;
+typedef struct {
+	pcap_t *ppcap;
+	int selectable_fd;
+	int n80211HeaderLength;
+} monitor_interface_t;
+
+// telemetry frame header consisting of seqnr and payload length
+struct header_s {
+	uint32_t seqnumber;
+	uint16_t length;
+}; // __attribute__ ((__packed__)); // not packed for now, doesn't work for some reason
+struct header_s header;
 
 const uint16_t sumdcrc16_table[256] = {
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7, 0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
@@ -103,54 +102,22 @@ void usage(void) {
 	    "Quick hack that only supports telemetry, no R/C\n"
 	    "\n"
 	    "Usage: rx_rc_telemetry_buf [options] <interfaces>\n\nOptions\n"
-	    "-o <output>     0 = output telemetry and R/C to serialport. 1 = output telemetry to STDOUT, R/C to serialport\n"
-	    "-b <baudrate>   Serial port baudrate\n"
-	    "-s <serialport> Serial port to use\n"
-	    "-r <protocol>   R/C protocol to output. 0 = MSP. 1 = Mavlink. 2 = SUMD. 3 = IBUS. 4 = SRXL/XBUS. 99 = disable R/C\n"
+//	    "-o <output>     0 = output telemetry and R/C to serialport. 1 = output telemetry to STDOUT, R/C to serialport\n"
 	    "-p <port>       Port for telemetry data. Default = 1\n"
 	    "-d <debug>      Debug. Set to 1 for debug output\n"
 	    "\n"
 	    "Example:\n"
-	    "  rx_rc_telemetry_buf -o 0 -b 19200 -s /dev/serial0 -r 0 -p 1 wlan0\n"
+	    "  rx_rc_telemetry_buf -p 1 wlan0\n"
 	    "\n");
 	exit(1);
 }
-
-typedef struct {
-	pcap_t *ppcap;
-	int selectable_fd;
-	int n80211HeaderLength;
-} monitor_interface_t;
-
-// telemetry frame header consisting of seqnr and payload length
-struct header_s {
-	uint32_t seqnumber;
-	uint16_t length;
-}; // __attribute__ ((__packed__)); // not packed for now, doesn't work for some reason
-struct header_s header;
-
-/*
-struct rcdata_s {
-	unsigned int chan1 : 11;
-	unsigned int chan2 : 11;
-	unsigned int chan3 : 11;
-	unsigned int chan4 : 11;
-	unsigned int chan5 : 11;
-	unsigned int chan6 : 11;
-	unsigned int chan7 : 11;
-	unsigned int chan8 : 11;
-	unsigned int switches : 16;
-} __attribute__ ((__packed__));
-struct rcdata_s rcdata;
-*/
-
+ 
 long long current_timestamp() {
     struct timeval te;
     gettimeofday(&te, NULL); // get current time
     long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // caculate milliseconds
     return milliseconds;
 }
-
 
 void open_and_configure_interface(const char *name, monitor_interface_t *interface) {
 	struct bpf_program bpfprogram;
@@ -176,11 +143,7 @@ void open_and_configure_interface(const char *name, monitor_interface_t *interfa
 
 	// match (RTS BF) or (DATA, DATA SHORT, RTS (and port))
 	if (nLinkEncap == DLT_IEEE802_11_RADIO) {
-	    if (param_rc_protocol != 99) { // only match on R/C packets if R/C enabled
-		sprintf(szProgram, "ether[0x00:4] == 0xb4bf0000 || ((ether[0x00:2] == 0x0801 || ether[0x00:2] == 0x0802 || ether[0x00:4] == 0xb4010000) && ether[0x04:1] == 0x%.2x)", port_encoded);
-	    } else {
 		sprintf(szProgram, "(ether[0x00:2] == 0x0801 || ether[0x00:2] == 0x0802 || ether[0x00:4] == 0xb4010000) && ether[0x04:1] == 0x%.2x", port_encoded);
-	    }
 	} else {
 		fprintf(stderr, "ERROR: unknown encapsulation on %s! check if monitor mode is supported and enabled\n", name);
 		exit(1);
@@ -339,7 +302,6 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
 
 }
 
-
 void status_memory_init(wifibroadcast_rx_status_t *s) 
 {
 	s->received_block_cnt = 0;
@@ -358,43 +320,22 @@ void status_memory_init(wifibroadcast_rx_status_t *s)
 	}
 }
 
-
-wifibroadcast_rx_status_t *status_memory_open(void) {
+wifibroadcast_rx_status_t *status_memory_open() 
+{
 	char buf[128];
 	int fd;
 	
 	sprintf(buf, "/wifibroadcast_rx_status_%d", param_port);
 	fd = shm_open(buf, O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) {
-		perror("shm_open"); exit(1);
+		perror("shm_open"); 
+		exit(1);
 	}
-//	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) {
-//		perror("ftruncate"); exit(1);
-//	}
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), 
+							PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (retval == MAP_FAILED) {
-		perror("mmap"); exit(1);
-	}
-	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
-	status_memory_init(tretval);
-	return tretval;
-}
-
-wifibroadcast_rx_status_t *status_memory_open_rc(void) {
-	char buf[128];
-	int fd;
-	
-	sprintf(buf, "/wifibroadcast_rx_status_rc");
-	fd = shm_open(buf, O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) {
-		perror("shm_open"); exit(1);
-	}
-//	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) {
-//		perror("ftruncate"); exit(1);
-//	}
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) {
-		perror("mmap"); exit(1);
+		perror("mmap"); 
+		exit(1);
 	}
 	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
 	status_memory_init(tretval);
@@ -412,19 +353,17 @@ int main(int argc, char *argv[])
 	int abuffers_filled = 0;
 	char path[45], line[100];
 	FILE* procfile;
+	int nOptionIndex;
+
 
 	for (p=0; p<100; p++) {
 		bzero(&(buffer[p]), sizeof(buffer_t));
 	}
 
 	// 0. Get args from cmdline
-	printf("RX R/C Telemetry_buf started\n");
+	printf("RX Telemetry_buf started\n");
 	srand(time(NULL));
-		int nOptionIndex;
-	static const struct option optiona[] = { 
-		{ "help", no_argument, &flagHelp, 1 }, 
-		{ 0, 0, 0, 0 } 
-	};
+
 	while (1) {
 		int c = getopt_long(argc, argv, "h:o:b:s:r:p:d:", optiona, &nOptionIndex);
 		if (c == -1)
@@ -434,18 +373,6 @@ int main(int argc, char *argv[])
 			break;
 		case 'h': // help
 			usage();
-		case 'o': // output
-			param_output = atoi(optarg);
-			break;
-		case 'b': // baudrate
-			param_baudrate = atoi(optarg);
-			break;
-		case 's': // serialport
-			param_serialport = optarg;
-			break;
-		case 'r': // R/C protocol
-			param_rc_protocol = atoi(optarg);
-			break;
 		case 'p': // port
 			param_port = atoi(optarg);
 			break;
@@ -453,32 +380,32 @@ int main(int argc, char *argv[])
 			param_debug = atoi(optarg);
 			break;
 		default:
-			fprintf(stderr, "unknown switch %c\n", c);
+			fprintf(stderr, "Unknown switch %c\n", c);
 			usage();
 		}
 	}
+	return 0;
 	if (optind >= argc) 
 		usage();
-	
-	return 0;
-	int x = optind;
-//	fprintf(stderr,"RX_RC_TELEMETRY: Serialport: %s\n",param_serialport);
-
 
 	// 1. Configure Wi-Fi interface
+	int x = optind;
 	while (x < argc && num_interfaces < 8) {
-			snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
-			procfile = fopen(path, "r");
-			if(!procfile) {fprintf(stderr,"ERROR: opening %s failed!\n", path); return 0;}
-			fgets(line, 100, procfile); // read the first line
-			fgets(line, 100, procfile); // read the 2nd line
-			if(strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
-				fprintf(stderr, "RX_RC_TELEMETRY: Driver: Atheros\n");
-//                  rx_status->adapter[j].type = (int8_t)(0);
-			} else { // ralink
-				fprintf(stderr, "RX_RC_TELEMETRY: Driver: Ralink\n");
-//                  rx_status->adapter[j].type = (int8_t)(1);
-			}
+		snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
+		procfile = fopen(path, "r");
+		if (!procfile) {
+			fprintf(stderr,"ERROR: opening %s failed!\n", path); 
+			return 0;
+		}
+		fgets(line, 100, procfile); // read the first line
+		fgets(line, 100, procfile); // read the 2nd line
+		if(strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
+			fprintf(stderr, "RX_RC_TELEMETRY: Driver: Atheros\n");
+//          rx_status->adapter[j].type = (int8_t)(0);
+		} else { // ralink
+			fprintf(stderr, "RX_RC_TELEMETRY: Driver: Ralink\n");
+//          rx_status->adapter[j].type = (int8_t)(1);
+		}
 		open_and_configure_interface(argv[x], interfaces + num_interfaces);
 		++num_interfaces;
         fclose(procfile);
@@ -489,66 +416,11 @@ int main(int argc, char *argv[])
 	// 2. Init shared memory
 	rx_status = status_memory_open();
 	rx_status->wifi_adapter_cnt = num_interfaces;
-	fprintf(stderr, "RX_RC_TELEMETRY: rx_status->wifi_adapter_cnt: %d\n",
-											rx_status->wifi_adapter_cnt);
-	if (param_rc_protocol != 99) { 
-		// do not open rx status rc if no R/C output configured
-	    rx_status_rc = status_memory_open_rc();
-	    rx_status_rc->wifi_adapter_cnt = num_interfaces;
-	    fprintf(stderr, "RX_RC_TELEMETRY: rx_status_rc->wifi_adapter_cnt: %d\n",
-												rx_status_rc->wifi_adapter_cnt);
-	}
-	fprintf(stderr, "RX_RC_TELEMETRY: num_interfaces:%d\n",num_interfaces);
+	fprintf(stderr, "RX_TELEMETRY: rx_status->wifi_adapter_cnt: %d\n", rx_status->wifi_adapter_cnt);
+	fprintf(stderr, "RX_TELEMETRY: num_interfaces: %d\n", num_interfaces);
 
-	// 3. Set UART
-	if (param_baudrate != 0) {
-	    serialport = open(param_serialport, O_WRONLY | O_NOCTTY | O_NDELAY);
-	    //fprintf(stderr, "RX_RC_TELEMETRY: serialport return: %d\n",serialport);
-	    if (serialport == -1) { // for some strange reason this doesn't work, although strace and the above fprintf shows -1
-			printf("RX_RC_TELEMETRY ERROR: Unable to open UART. Ensure it is not in use by another application\n");
-	    }	
-		struct termios options;
-		tcgetattr(serialport, &options);
-		cfmakeraw(&options);
-    	switch (param_baudrate) {
-		case 2400:
-			cfsetispeed(&options, B2400);
-		break;
-		case 4800:
-			cfsetospeed(&options, B4800);
-		break;
-		case 9600:
-			cfsetospeed(&options, B9600);
-		break;
-		case 19200:
-			cfsetospeed(&options, B19200);
-		break;
-		case 38400:
-			cfsetospeed(&options, B38400);
-		break;
-		case 57600:
-			cfsetospeed(&options, B57600);
-		break;
-		case 115200:
-			cfsetospeed(&options, B115200);
-		break;
-		default:
-			printf("ERROR: unsupported baudrate: %d\n", param_baudrate);
-			exit(1);
-    	} // switch
-		options.c_cflag &= ~CSIZE;
-		options.c_cflag |= CS8; // Set 8 data bits
-		options.c_cflag &= ~PARENB; // Set no parity
-		options.c_cflag &= ~CSTOPB; // 1 stop bit
-		options.c_lflag &= ~ECHO; // no echo
-		options.c_cflag &= ~CRTSCTS; // no RTS/CTS Flow Control
-		options.c_cflag |= CLOCAL; // Set local mode on
-		tcsetattr(serialport, TCSANOW, &options); //write options
-		printf("UART %s output set to %d baud\n", param_serialport, param_baudrate);
-	}
+	// 3. Main loop
 	lastseq = 0;
-
-	// 4. Main loop
 	for(;;) {
 //	    fprintf(stderr,"---- loop start ---\n");
 	    struct timeval to;

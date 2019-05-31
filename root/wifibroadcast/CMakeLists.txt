@@ -16,6 +16,11 @@ add_executable(rx_rc_telemetry_buf  rx_rc_telemetry_buf.c  lib.c  radiotap.c)
 target_link_libraries(rx_rc_telemetry_buf rt pcap)
 install (TARGETS rx_rc_telemetry DESTINATION bin)
 
+add_executable(rx_telemetry_buf  rx_telemetry_buf.c  lib.c  radiotap.c)
+target_link_libraries(rx_telemetry_buf rt pcap)
+install (TARGETS rx_telemetry_buf DESTINATION bin)
+
+
 add_executable(rssirx  rssirx.c  lib.c  radiotap.c )
 target_link_libraries(rssirx rt pcap)
 install (TARGETS rssirx DESTINATION bin)
@@ -56,6 +61,10 @@ add_executable(rssi_forward  rssi_forward.c )
 target_link_libraries(rssi_forward rt pcap)
 install (TARGETS rssi_forward DESTINATION bin)
 
+add_executable(rssi_forward_in  rssi_forward_in.c )
+target_link_libraries(rssi_forward_in rt pcap)
+install (TARGETS rssi_forward_in DESTINATION bin)
+
 add_executable(rssi_forward_stdout  rssi_forward_stdout.c )
 target_link_libraries(rssi_forward_stdout rt pcap)
 install (TARGETS rssi_forward_stdout DESTINATION bin)
@@ -75,3 +84,15 @@ install (TARGETS sharedmem_init_tx DESTINATION bin)
 add_executable(ftee ftee.c)
 target_link_libraries(ftee rt pcap)
 install (TARGETS ftee DESTINATION bin)
+
+add_executable(uftees uftees.c)
+target_link_libraries(uftees rt pcap)
+install (TARGETS uftees DESTINATION bin)
+
+add_executable(utees utees.c)
+target_link_libraries(utees rt pcap)
+install (TARGETS utees DESTINATION bin)
+
+add_executable(suftees suftees.c)
+target_link_libraries(suftees rt pcap)
+install (TARGETS suftees DESTINATION bin)

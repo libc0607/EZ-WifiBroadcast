@@ -1,6 +1,11 @@
 // rssi_forward by Rodizio (c) 2017. Licensed under GP2.
 // reads video rssi from shared mem and sends it out via UDP (for FPV_VR 2018 app)
-// usage: rssi_forward 192.168.2.2 5100
+//
+// modified by libc0607@Github: specified udp source port 
+//
+// usage: rssi_forward 192.168.2.2 5100 30001
+// Send to 192.168.2.2:5100 using source port 30001
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -90,15 +95,21 @@ int main(int argc, char *argv[]) {
 	int16_t port = atoi(argv[2]);
 	int j = 0;
 	int cardcounter = 0;
-
+	struct sockaddr_in si_other_rssi;
+	struct sockaddr_in source_addr;	
+	int s_rssi, slen_rssi=sizeof(si_other_rssi);
+	
 	fprintf(stderr,"rssi_forward started\n");
 
-	struct sockaddr_in si_other_rssi;
-	int s_rssi, slen_rssi=sizeof(si_other_rssi);
 	si_other_rssi.sin_family = AF_INET;
 	si_other_rssi.sin_port = htons(port);
 	si_other_rssi.sin_addr.s_addr = inet_addr(argv[1]);
 	memset(si_other_rssi.sin_zero, '\0', sizeof(si_other_rssi.sin_zero));
+	
+	bzero(&source_addr, sizeof(source_addr));
+	source_addr.sin_family = AF_INET;
+	source_addr.sin_port = htons(atoi(argv[3]));
+	source_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	wifibroadcast_rx_status_t *t = status_memory_open();
 	wifibroadcast_rx_status_t *t_tdown = status_memory_open_tdown();
@@ -135,8 +146,13 @@ int main(int argc, char *argv[]) {
 	    wbcdata.adapter[j].type = 0;
 	}
 
-	if ((s_rssi=socket(PF_INET, SOCK_DGRAM, 0))==-1) printf("ERROR: Could not create UDP socket!");
-
+	if ((s_rssi=socket(PF_INET, SOCK_DGRAM, 0))==-1) 
+		printf("ERROR: Could not create UDP socket!");
+	
+	// always bind on the same source port to avoid UDP "connection" fail
+	// see https://unix.stackexchange.com/questions/420570/udp-port-unreachable-although-process-is-listening
+	bind(s_rssi, (struct sockaddr*)&source_addr, sizeof(source_addr));
+	
 	for(;;) {
 	    wbcdata.damaged_block_cnt = t->damaged_block_cnt;
 	    wbcdata.lost_packet_cnt = t->lost_packet_cnt;
@@ -165,7 +181,7 @@ int main(int argc, char *argv[]) {
 	    }
 
 	    if (sendto(s_rssi, &wbcdata, 94, 0, (struct sockaddr*)&si_other_rssi, slen_rssi)==-1) printf("ERROR: Could not send RSSI data!");
-	    usleep(250000);
+	    usleep(100000);
 	}
 	return 0;
 }
