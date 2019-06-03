@@ -1,9 +1,11 @@
 #!/bin/bash
+source /root/wbc-scripts/env.sh
 
 # check default config
 tmessage "======================================"
 tmessage "wbc-videotx-raspivid $(date)"
 tmessage "======================================"
+
 source /root/wbc-scripts/func_logconf.sh
 
 # Apply OpenWrt config
@@ -54,5 +56,5 @@ tmessage "Video stream send to $OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT"
 #RASPIVIDCMD="raspivid -w $OPENWRT_VIDEO_WIDTH -h $OPENWRT_VIDEO_HEIGHT -fps $OPENWRT_VIDEO_FPS -b $OPENWRT_VIDEO_BITRATE -g $OPENWRT_VIDEO_KEYFRAMERATE -t 0 $EXTRAPARAMS -o -"
 #socat -u EXEC:"$RASPIVIDCMD" UDP:$OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT,sourceport=30000
 
-socat -u EXEC:"raspivid -w $OPENWRT_VIDEO_WIDTH -h $OPENWRT_VIDEO_HEIGHT -fps $OPENWRT_VIDEO_FPS -b $OPENWRT_VIDEO_BITRATE -g $OPENWRT_VIDEO_KEYFRAMERATE -t 0 $EXTRAPARAMS -o -" UDP:$OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT,sourceport=30000
+socat -u EXEC:"raspivid -w $OPENWRT_VIDEO_WIDTH -h $OPENWRT_VIDEO_HEIGHT -fps $OPENWRT_VIDEO_FPS -b $OPENWRT_VIDEO_BITRATE -g $OPENWRT_VIDEO_KEYFRAMERATE -t 0 -cd H264 -n -fl -ih -pf high -if both -ex sports -mm average -awb horizon -o -" UDP:$OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT,sourceport=30000
 

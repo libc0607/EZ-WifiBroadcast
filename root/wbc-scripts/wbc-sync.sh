@@ -1,4 +1,5 @@
 ﻿#!/bin/bash
+source /root/wbc-scripts/env.sh
 source /root/wbc-scripts/func_logconf.sh
 
 # Default values
@@ -10,7 +11,7 @@ OPENWRT_VIDEO_FPS=48
 OPENWRT_VIDEO_KEYFRAMERATE=5
 OPENWRT_VIDEO_WIDTH=800
 OPENWRT_VIDEO_HEIGHT=480
-OPENWRT_VIDEO_BITRATE=5000
+OPENWRT_VIDEO_BITRATE=1024000
 	
 # Get token from openwrt and check valid
 while true; do
@@ -56,7 +57,7 @@ while true; do
 		OPENWRT_VIDEO_WIDTH=`echo $CONFIG_JSONMSG_FULL |jq '.imgsize'|cut -d '"' -f 2|cut -d 'x' -f 1`
 		OPENWRT_VIDEO_HEIGHT=`echo $CONFIG_JSONMSG_FULL |jq '.imgsize'|cut -d '"' -f 2|cut -d 'x' -f 2`
 		OPENWRT_VIDEO_BITRATE=`echo $CONFIG_JSONMSG_FULL |jq '.bitrate'|cut -d '"' -f 2`
-		OPENWRT_VIDEO_EXTRAPARAMS=`echo $CONFIG_JSONMSG_FULL |jq '.extraparams'|cut -d '"' -f 2`
+#		OPENWRT_VIDEO_EXTRAPARAMS=`echo $CONFIG_JSONMSG_FULL |jq '.extraparams'|cut -d '"' -f 2`
 		
 		# save them to file
 		echo "#!/bin/bash" > $OPENWRT_CONFIG_FILE
@@ -68,7 +69,7 @@ while true; do
 		echo "OPENWRT_VIDEO_WIDTH=$OPENWRT_VIDEO_WIDTH" >> $OPENWRT_CONFIG_FILE
 		echo "OPENWRT_VIDEO_HEIGHT=$OPENWRT_VIDEO_HEIGHT" >> $OPENWRT_CONFIG_FILE
 		echo "OPENWRT_VIDEO_BITRATE=$OPENWRT_VIDEO_BITRATE" >> $OPENWRT_CONFIG_FILE
-		echo "EXTRAPARAMS=$OPENWRT_VIDEO_EXTRAPARAMS" >> $OPENWRT_CONFIG_FILE
+#		echo "EXTRAPARAMS=$OPENWRT_VIDEO_EXTRAPARAMS" >> $OPENWRT_CONFIG_FILE
 		
 		# let others know the new config is ready
 		echo "1" > $OPENWRT_CONFIGURED_FLAG_FILE

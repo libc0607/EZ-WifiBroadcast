@@ -1,5 +1,5 @@
 #!/bin/sh
-
+source /root/wbc-scripts/env.sh
 source /root/wbc-scripts/func_logconf.sh
 source /root/wbc-scripts/func_applyconf.sh
 

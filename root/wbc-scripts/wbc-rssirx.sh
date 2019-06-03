@@ -1,4 +1,5 @@
 #!/bin/sh
+source /root/wbc-scripts/env.sh
 # /root/.profile - main EZ-Wifibroadcast script
 # (c) 2017 by Rodizio. Licensed under GPL2
 #
