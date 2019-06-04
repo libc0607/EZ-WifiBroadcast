@@ -7,9 +7,7 @@ OSD_CONFIG_FILE_MD5_PATH=/var/run/wbc/osdconfig_md5
 OSD_CONFIG_FILE_MD5_NEW=`md5sum /boot/osdconfig.txt|cut -d ' ' -f 1`
 OSD_CONFIG_FILE_MD5_OLD=`cat $OSD_CONFIG_FILE_MD5_PATH`
 
-if [[ "$OSD_CONFIG_FILE_MD5_OLD" == "$OSD_CONFIG_FILE_MD5_NEW" ]]; then
-	tmessage "Config not changed, skip rebuilding.. "
-else
+if [[ "$OSD_CONFIG_FILE_MD5_OLD" != "$OSD_CONFIG_FILE_MD5_NEW" ]]; then
 	tmessage "Config changed, rebuilding.. "
 	ionice -c 3 nice dos2unix -n /boot/osdconfig.txt /tmp/osdconfig.txt
 	cd /root/wifibroadcast_osd
@@ -20,6 +18,8 @@ else
 		sleep 1
 	}
 	echo $OSD_CONFIG_FILE_MD5_NEW > $OSD_CONFIG_FILE_MD5_PATH
+else
+	tmessage "Config not changed, skip rebuilding.. "
 fi
 
 killall wbc_status > /dev/null 2>&1
