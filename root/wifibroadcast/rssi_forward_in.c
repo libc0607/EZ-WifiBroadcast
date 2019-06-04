@@ -17,7 +17,7 @@
 #include <arpa/inet.h>
 #include "lib.h"
 
-#define DEBUG
+//#define DEBUG
 
 typedef struct 
 {
