@@ -45,7 +45,7 @@ while true; do
 		# save current config md5 and timestamp
 		echo "$OPENWRT_RESTART_TS" > $OPENWRT_RESTART_TS_FILE
 		echo "$OPENWRT_CONFIG_MD5" > $OPENWRT_CONFIG_MD5_FILE
-		
+		sync
 		# Get config from OpenWrt
 		CONFIG_JSONMSG_FULL=`curl -i -X POST -b sysauth=$OPENWRT_AUTH_TOKEN http://$OPENWRT_IP/cgi-bin/luci/admin/wbc/get_initconfig |tail -n 1`
 		tmessage "Full JSON response: $CONFIG_JSONMSG_FULL"

@@ -46,7 +46,7 @@ else
 fi
 
 #echo $OPENWRT_VIDEO_BITRATE > /tmp/bitrate_kbit
-tmessage "Starting video transmission, $OPENWRT_VIDEO_WIDTH$OPENWRT_VIDEO_HEIGHT $OPENWRT_VIDEO_FPS fps, video bitrate: $OPENWRT_VIDEO_BITRATE kBit/s, Keyframerate: $OPENWRT_VIDEO_KEYFRAMERATE"
+tmessage "Starting video transmission, $OPENWRT_VIDEO_WIDTHx$OPENWRT_VIDEO_HEIGHT $OPENWRT_VIDEO_FPS fps, video bitrate: $OPENWRT_VIDEO_BITRATE Bit/s, Keyframerate: $OPENWRT_VIDEO_KEYFRAMERATE"
 tmessage "Video stream send to $OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT"
 
 # "raspivid -o udp://" seems can't bind to a specified port
