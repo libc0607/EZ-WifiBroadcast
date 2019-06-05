@@ -10,7 +10,7 @@ OSD_CONFIG_FILE_MD5_OLD=`cat $OSD_CONFIG_FILE_MD5_PATH`
 if [[ "$OSD_CONFIG_FILE_MD5_OLD" != "$OSD_CONFIG_FILE_MD5_NEW" ]]; then
 	tmessage "Config changed, rebuilding.. "
 	ionice -c 3 nice dos2unix -n /boot/osdconfig.txt /tmp/osdconfig.txt
-	cd /root/wifibroadcast_osd
+	cd /root/wifibroadcast-osd
 	ionice -c 3 nice make || {
 		tmessage "ERROR: Could not build OSD, check osdconfig.txt!"
 		sleep 1
