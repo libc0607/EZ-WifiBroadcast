@@ -191,24 +191,24 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 			printf("Get data from %s, %d Bytes\n", inet_ntoa(addr.sin_addr), ret);
 #endif
-			t->damaged_block_cnt = wbcdata.damaged_block_cnt;
-			t->lost_packet_cnt = wbcdata.lost_packet_cnt;
-			t->received_packet_cnt = wbcdata.received_packet_cnt;
-			t->kbitrate = wbcdata.kbitrate;
-			t->wifi_adapter_cnt = wbcdata.wifi_adapter_cnt;
-			t_sysair->skipped_fec_cnt = wbcdata.skipped_packet_cnt;
-			t_sysair->bitrate_kbit = wbcdata.kbitrate_measured;
-			t_sysair->bitrate_measured_kbit = wbcdata.kbitrate_set;
+			t->damaged_block_cnt = ntohl(wbcdata.damaged_block_cnt);
+			t->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt);
+			t->received_packet_cnt = ntohl(wbcdata.received_packet_cnt);
+			t->kbitrate = ntohl(wbcdata.kbitrate);
+			t->wifi_adapter_cnt = ntohl(ntohl(wbcdata.wifi_adapter_cnt);
+			t_sysair->skipped_fec_cnt = ntohl(wbcdata.skipped_packet_cnt);
+			t_sysair->bitrate_kbit = ntohl(wbcdata.kbitrate_measured);
+			t_sysair->bitrate_measured_kbit = ntohl(wbcdata.kbitrate_set);
 			t_sysair->cpuload = wbcdata.cpuload_air;
 			t_sysair->temp = wbcdata.temp_air;
-			t_tdown->lost_packet_cnt = wbcdata.lost_packet_cnt_telemetry_down;
-			t_rc->lost_packet_cnt = wbcdata.lost_packet_cnt_rc;
+			t_tdown->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_telemetry_down);
+			t_rc->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_rc);
 			t_rc->adapter[0].current_signal_dbm = wbcdata.current_signal_air;
 			for (cardcounter=0; cardcounter<number_cards; ++cardcounter) {
 				t->adapter[cardcounter].current_signal_dbm = 
 							wbcdata.adapter[cardcounter].current_signal_dbm;
 				t->adapter[cardcounter].received_packet_cnt = 
-							wbcdata.adapter[cardcounter].received_packet_cnt;
+							ntohl(wbcdata.adapter[cardcounter].received_packet_cnt);
 				t->adapter[cardcounter].type = wbcdata.adapter[cardcounter].type;
 			}
 		}

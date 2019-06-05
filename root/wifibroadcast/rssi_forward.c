@@ -154,29 +154,29 @@ int main(int argc, char *argv[]) {
 	bind(s_rssi, (struct sockaddr*)&source_addr, sizeof(source_addr));
 	
 	for(;;) {
-	    wbcdata.damaged_block_cnt = t->damaged_block_cnt;
-	    wbcdata.lost_packet_cnt = t->lost_packet_cnt;
-	    wbcdata.skipped_packet_cnt = t_sysair->skipped_fec_cnt;
-	    wbcdata.received_packet_cnt = t->received_packet_cnt;
-	    wbcdata.kbitrate = t->kbitrate;
-	    wbcdata.kbitrate_measured = t_sysair->bitrate_kbit;
-	    wbcdata.kbitrate_set = t_sysair->bitrate_measured_kbit;
-	    wbcdata.lost_packet_cnt_telemetry_up = 0;
-	    wbcdata.lost_packet_cnt_telemetry_down = t_tdown->lost_packet_cnt;
-	    wbcdata.lost_packet_cnt_msp_up = 0;
-	    wbcdata.lost_packet_cnt_msp_down = 0;
-	    wbcdata.lost_packet_cnt_rc = t_rc->lost_packet_cnt;
+	    wbcdata.damaged_block_cnt = htonl(t->damaged_block_cnt);
+	    wbcdata.lost_packet_cnt = htonl(t->lost_packet_cnt);
+	    wbcdata.skipped_packet_cnt = htonl(t_sysair->skipped_fec_cnt);
+	    wbcdata.received_packet_cnt = htonl(t->received_packet_cnt);
+	    wbcdata.kbitrate = htonl(t->kbitrate);
+	    wbcdata.kbitrate_measured = htonl(t_sysair->bitrate_kbit);
+	    wbcdata.kbitrate_set = htonl(t_sysair->bitrate_measured_kbit);
+	    wbcdata.lost_packet_cnt_telemetry_up = htonl(0);
+	    wbcdata.lost_packet_cnt_telemetry_down = htonl(t_tdown->lost_packet_cnt);
+	    wbcdata.lost_packet_cnt_msp_up = htonl(0);
+	    wbcdata.lost_packet_cnt_msp_down = htonl(0);
+	    wbcdata.lost_packet_cnt_rc = htonl(t_rc->lost_packet_cnt);
 	    wbcdata.current_signal_air = t_rc->adapter[0].current_signal_dbm;
 	    wbcdata.joystick_connected = 0;
 	    wbcdata.cpuload_gnd = 0;
 	    wbcdata.temp_gnd = 0;
 	    wbcdata.cpuload_air = t_sysair->cpuload;
 	    wbcdata.temp_air = t_sysair->temp;
-	    wbcdata.wifi_adapter_cnt = t->wifi_adapter_cnt;
+	    wbcdata.wifi_adapter_cnt = htonl(t->wifi_adapter_cnt);
 
 	    for(cardcounter=0; cardcounter<number_cards; ++cardcounter) {
 		wbcdata.adapter[cardcounter].current_signal_dbm = t->adapter[cardcounter].current_signal_dbm;
-		wbcdata.adapter[cardcounter].received_packet_cnt = t->adapter[cardcounter].received_packet_cnt;
+		wbcdata.adapter[cardcounter].received_packet_cnt = htonl(t->adapter[cardcounter].received_packet_cnt);
 		wbcdata.adapter[cardcounter].type = t->adapter[cardcounter].type;
 	    }
 
