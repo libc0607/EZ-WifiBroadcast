@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
 			t->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt);
 			t->received_packet_cnt = ntohl(wbcdata.received_packet_cnt);
 			t->kbitrate = ntohl(wbcdata.kbitrate);
-			t->wifi_adapter_cnt = ntohl(ntohl(wbcdata.wifi_adapter_cnt);
+			t->wifi_adapter_cnt = ntohl(wbcdata.wifi_adapter_cnt);
 			t_sysair->skipped_fec_cnt = ntohl(wbcdata.skipped_packet_cnt);
 			t_sysair->bitrate_kbit = ntohl(wbcdata.kbitrate_measured);
 			t_sysair->bitrate_measured_kbit = ntohl(wbcdata.kbitrate_set);
