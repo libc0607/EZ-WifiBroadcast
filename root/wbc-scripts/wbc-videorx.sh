@@ -25,6 +25,11 @@ else
 	echo "0" > /tmp/undervolt
 fi
 
+if [[ "$OPENWRT_VIDEO_FORWARD_PORT" == "null" ]]; then
+	tmessage "Video RX: Disabled."
+	sleep 365d
+fi
+
 tmessage "Starting RX ... "
 
 socat -u UDP-LISTEN:$OPENWRT_VIDEO_FORWARD_PORT EXEC:'$DISPLAY_PROGRAM' 

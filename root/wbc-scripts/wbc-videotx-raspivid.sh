@@ -45,6 +45,11 @@ else
 	tmessage "Power good."
 fi
 
+if [[ "$OPENWRT_VIDEO_FORWARD_PORT" == "null" ]]; then
+	tmessage "Video TX: Disabled."
+	sleep 365d
+fi
+
 #echo $OPENWRT_VIDEO_BITRATE > /tmp/bitrate_kbit
 tmessage "Starting video transmission, $OPENWRT_VIDEO_WIDTHx$OPENWRT_VIDEO_HEIGHT $OPENWRT_VIDEO_FPS fps, video bitrate: $OPENWRT_VIDEO_BITRATE Bit/s, Keyframerate: $OPENWRT_VIDEO_KEYFRAMERATE"
 tmessage "Video stream send to $OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT"

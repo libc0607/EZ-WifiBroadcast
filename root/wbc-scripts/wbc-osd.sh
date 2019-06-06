@@ -26,7 +26,7 @@ killall wbc_status > /dev/null 2>&1
 tmessage "Waiting until OpenWrt rx is running ..."
 VIDEORXRUNNING=0
 while [[ "$VIDEORXRUNNING" != "1" ]]; do
-	sleep 0.5
+	sleep 1
 	VIDEORXRUNNING=`cat $CHECK_ALIVE_FILE`
 done
 tmessage "Video running, starting OSD processes ..."
