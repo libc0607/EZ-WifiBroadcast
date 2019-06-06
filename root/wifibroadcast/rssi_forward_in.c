@@ -17,7 +17,7 @@
 #include <arpa/inet.h>
 #include "lib.h"
 
-//#define DEBUG
+#define DEBUG
 
 typedef struct 
 {
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 			t_tdown->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_telemetry_down);
 			t_rc->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_rc);
 			t_rc->adapter[0].current_signal_dbm = wbcdata.current_signal_air;
-			for (cardcounter=0; cardcounter<number_cards; ++cardcounter) {
+			for (cardcounter=0; cardcounter<6; ++cardcounter) {
 				t->adapter[cardcounter].current_signal_dbm = 
 							wbcdata.adapter[cardcounter].current_signal_dbm;
 				t->adapter[cardcounter].received_packet_cnt = 

@@ -174,13 +174,14 @@ int main(int argc, char *argv[]) {
 	    wbcdata.temp_air = t_sysair->temp;
 	    wbcdata.wifi_adapter_cnt = htonl(t->wifi_adapter_cnt);
 
-	    for(cardcounter=0; cardcounter<number_cards; ++cardcounter) {
-		wbcdata.adapter[cardcounter].current_signal_dbm = t->adapter[cardcounter].current_signal_dbm;
-		wbcdata.adapter[cardcounter].received_packet_cnt = htonl(t->adapter[cardcounter].received_packet_cnt);
-		wbcdata.adapter[cardcounter].type = t->adapter[cardcounter].type;
+	    for(cardcounter=0; cardcounter<6; ++cardcounter) {
+			wbcdata.adapter[cardcounter].current_signal_dbm = t->adapter[cardcounter].current_signal_dbm;
+			wbcdata.adapter[cardcounter].received_packet_cnt = htonl(t->adapter[cardcounter].received_packet_cnt);
+			wbcdata.adapter[cardcounter].type = t->adapter[cardcounter].type;
 	    }
 
-	    if (sendto(s_rssi, &wbcdata, 94, 0, (struct sockaddr*)&si_other_rssi, slen_rssi)==-1) printf("ERROR: Could not send RSSI data!");
+	    if (sendto(s_rssi, &wbcdata, 94, 0, (struct sockaddr*)&si_other_rssi, slen_rssi)==-1) 
+			printf("ERROR: Could not send RSSI data!");
 	    usleep(100000);
 	}
 	return 0;
