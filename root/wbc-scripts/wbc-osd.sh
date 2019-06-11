@@ -31,6 +31,6 @@ while [[ "$VIDEORXRUNNING" != "1" ]]; do
 done
 tmessage "Video running, starting OSD processes ..."
 
-/tmp/osd > /dev/null
+/tmp/osd $OPENWRT_TELE_FORWARD_PORT > /dev/null
 
 tmessage "OSD Stopped."
