@@ -11,7 +11,7 @@ if [ -f $OPENWRT_CONFIGURED_FLAG_FILE ]; then
 			supervisorctl restart wbc-rssirx &
 			supervisorctl restart wbc-telemetryrx &
 		fi
-		sleep 3
+		sleep 10
 	done
 else
 	sleep 3
