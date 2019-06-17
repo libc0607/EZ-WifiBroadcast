@@ -3,8 +3,15 @@
 //
 // modified by libc0607@Github: specified udp source port 
 //
-// usage: rssi_forward 192.168.2.2 5100 30001
-// Send to 192.168.2.2:5100 using source port 30001
+// usage: rssi_forward config.ini 
+/* 
+[rssirx]
+nic=wlan0
+udp_ip=192.168.0.98
+udp_port=35003
+udp_bind_port=35004 
+*/
+// Send to 192.168.0.98:35003 using source port 35004
 //
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +26,7 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 #include "lib.h"
+#include <iniparser.h>
 
 typedef struct {
     uint32_t received_packet_cnt;
@@ -92,7 +100,20 @@ wifibroadcast_rx_status_t_rc *status_memory_open_rc() {
 
 
 int main(int argc, char *argv[]) {
-	int16_t port = atoi(argv[2]);
+	if(argc < 2){
+        fprintf(stderr, "usage: %s <ini.file>\n", argv[0]);
+        return 1;
+    }
+	
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	fprintf(stderr, "Send to %s:%s, source port %s\n", 
+			iniparser_getstring(ini, "rssirx:udp_ip", NULL), 
+			iniparser_getstring(ini, "rssirx:udp_port", NULL), 
+			iniparser_getstring(ini, "rssirx:udp_bind_port", NULL));
+	
+	
+	int16_t port = atoi(iniparser_getstring(ini, "rssirx:udp_port", NULL));
 	int j = 0;
 	int cardcounter = 0;
 	struct sockaddr_in si_other_rssi;
@@ -103,12 +124,12 @@ int main(int argc, char *argv[]) {
 
 	si_other_rssi.sin_family = AF_INET;
 	si_other_rssi.sin_port = htons(port);
-	si_other_rssi.sin_addr.s_addr = inet_addr(argv[1]);
+	si_other_rssi.sin_addr.s_addr = inet_addr(iniparser_getstring(ini, "rssirx:udp_ip", NULL));
 	memset(si_other_rssi.sin_zero, '\0', sizeof(si_other_rssi.sin_zero));
 	
 	bzero(&source_addr, sizeof(source_addr));
 	source_addr.sin_family = AF_INET;
-	source_addr.sin_port = htons(atoi(argv[3]));
+	source_addr.sin_port = htons(atoi(iniparser_getstring(ini, "rssirx:udp_bind_port", NULL)));
 	source_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	wifibroadcast_rx_status_t *t = status_memory_open();
@@ -184,5 +205,6 @@ int main(int argc, char *argv[]) {
 			printf("ERROR: Could not send RSSI data!");
 	    usleep(100000);
 	}
+	iniparser_freedict(ini);
 	return 0;
 }
