@@ -1,7 +1,11 @@
 ﻿// rssi_forward_in
 // Get RSSI Data from UDP packet and write it into shared mem
 // Use with rssi_forward
-// usage: ./rssi_forward_in 5100
+// usage: ./rssi_forward_in conf.ini
+// conf.ini:
+//	[rssi_in]
+//  udp_port=5100
+//
 // Listen on port 5100
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +20,7 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 #include "lib.h"
+#include <iniparser.h>
 
 #define DEBUG
 
@@ -154,6 +159,16 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 	fprintf(stderr, "rssi_forward_in started\n");
 #endif	
+	if(argc < 2){
+        fprintf(stderr, "usage: %s <ini.file>\n", argv[0]);
+        return 1;
+    }
+	
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	fprintf(stderr, "Listen %s\n", 
+			iniparser_getstring(ini, "rssi_in:udp_port", NULL));
+			
 	int ret = 0;
 	int cardcounter = 0;
 	struct sockaddr_in addr;
@@ -162,7 +177,7 @@ int main(int argc, char *argv[])
 	
 	bzero(&addr, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(atoi(argv[1]));
+	addr.sin_port = htons(atoi(iniparser_getstring(ini, "rssi_in:udp_port", NULL)));
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	if ( (sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0 ){
 		fprintf(stderr, "ERROR: Could not create UDP socket!");
@@ -214,5 +229,6 @@ int main(int argc, char *argv[])
 		}
 	}
 	close(sockfd);
+	iniparser_freedict(ini);
 	return 0;
 }
