@@ -27,7 +27,7 @@
 
 #define TO_DEG 180.0f / M_PI
 
-void render_init();
+void render_init(char *font_char);
 void setfillstroke();
 void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_type, uint8_t cpuload_gnd, uint8_t temp_gnd, uint8_t undervolt, int fps);
 

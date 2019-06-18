@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
     fprintf(stderr,"OSD: Sharedmem init done\n");
 
 	fprintf(stderr,"OSD: Initializing render engine ...\n");
-    render_init();
+    render_init(iniparser_getstring(ini, "osd:font", NULL));
 	fprintf(stderr,"OSD: Render init done\n");
 
 	bzero(&addr, sizeof(addr));
