@@ -45,6 +45,33 @@ int tx_restart_count_last;
 
 bool no_signal = false;
 
+// Config from ini file, convert once when init in load_ini() called by main.c:main()
+// all variables start with i_ (means ini), all boolean ended with _en 
+float i_global_scale, i_uplink_rssi_scale, i_downlink_rssi_scale, i_downlink_rssi_detailed_scale, i_rssi_scale;
+float i_sys_scale, i_home_arrow_scale, i_batt_status_scale, i_batt_gauge_scale, i_kbitrate_scale;
+float i_cell_max, i_cell_min, i_cell_warning1, i_cell_warning2, i_compass_scale, i_altladder_scale;
+float i_speedladder_scale, i_ahi_scale, i_position_scale, i_sat_scale, i_distance_scale;
+float i_flightmode_scale, i_climb_scale, i_airspeed_scale, i_baroalt_scale, i_course_over_ground_scale;
+float i_gpsspeed_scale, i_gpsalt_scale, outlinewidth;
+int i_warning_pos_x, i_warning_pos_y, i_uplink_rssi_en, i_uplink_rssi_pos_x, i_uplink_rssi_pos_y;
+int i_downlink_rssi_en, i_downlink_rssi_pos_x, i_downlink_rssi_pos_y, i_downlink_rssi_fec_bar_en;
+int i_downlink_rssi_detailed_en, i_downlink_rssi_detailed_pos_x, i_downlink_rssi_detailed_pos_y;
+int i_rssi_pos_x, i_rssi_pos_y, i_kbitrate_en, i_kbitrate_pos_x, i_kbitrate_pos_y, i_sys_en;
+int i_sys_pos_x, i_sys_pos_y, i_batt_gauge_en, i_batt_gauge_pos_x, i_batt_gauge_pos_y, i_cells;
+int i_home_arrow_en, i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_usecog_en, i_home_arrow_invert_en;
+int i_batt_status_en, i_batt_status_pos_x, i_batt_status_pos_y, i_batt_status_current;
+int i_compass_en, i_compass_pos_y, i_compass_usecog_en, i_altladder_en, i_altladder_pos_x, i_altladder_usebaroalt_en;
+int i_speedladder_en, i_speedladder_pos_x, i_speedladder_useairspeed_en, i_ahi_en, i_ahi_ladder_en;
+int i_ahi_invert_roll, i_ahi_invert_pitch, i_ahi_swap_roll_and_pitch_en, i_position_en, i_distance_pos_y;
+int i_position_pos_x, i_position_pos_y, i_sat_en, i_sat_pos_x, i_sat_pos_y, i_distance_en, i_distance_pos_x;
+int i_flightmode_en, i_flightmode_pos_x, i_flightmode_pos_y, i_climb_en, i_climb_pos_x, i_climb_pos_y;
+int i_airspeed_pos_x, i_airspeed_pos_y, i_baroalt_en, i_baroalt_pos_x, i_baroalt_pos_y, i_gpsspeed_en;
+int i_course_over_ground_pos_x, i_course_over_ground_pos_y, i_gpsspeed_pos_x, i_gpsspeed_pos_y;
+int i_gpsalt_pos_x, i_gpsalt_pos_y, i_course_over_ground_en, i_gpsalt_en, i_airspeed_en, i_rssi_en;
+int i_imperial_en, i_copter_en;
+int i_color_r, i_color_g, i_color_b, i_outlinecolor_r, i_outlinecolor_g, i_outlinecolor_b;
+float i_color_opacity, i_outlinecolor_opacity;
+
 
 long long current_ts() {
     struct timeval te;
@@ -53,22 +80,18 @@ long long current_ts() {
     return milliseconds;
 }
 
-
 int getWidth(float pos_x_percent) {
     return (width * 0.01f * pos_x_percent);
 }
-
 
 int getHeight(float pos_y_percent) {
     return (height * 0.01f * pos_y_percent);
 }
 
-
 float getOpacity(int r, int g, int b, float o) {
     if (o<0.5) o = o*2;
     return o;
 }
-
 
 void setfillstroke() {
     Fill(COLOR);
@@ -76,12 +99,11 @@ void setfillstroke() {
     StrokeWidth(OUTLINEWIDTH);
 }
 
-
 void render_init() {
     char filename[100] = "/boot/osdfonts/";
     InitShapes(&width, &height);
 
-    strcat(filename, FONT);
+    strcat(filename, FONT);	// to-do
     myfont = LoadTTFFile(filename);
     if (!myfont) {
         fputs("ERROR: Failed to load font!", stderr);
@@ -98,257 +120,283 @@ void render_init() {
 //  vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 }
 
+// to-do
+void load_ini(dictionary *ini) {
+	// pass
+	
+	
+	return;
+}
 
-void render(telemetry_data_t *td, uint8_t cpuload_gnd, uint8_t temp_gnd, uint8_t undervolt, int osdfps) {
-    Start(width,height); // render start
+void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_type, uint8_t cpuload_gnd, 
+														uint8_t temp_gnd, uint8_t undervolt, int osdfps) 
+{
+	Start(width, height); // render start
     setfillstroke();
 
-    if (td->rx_status_sysair->undervolt == 1) draw_message(0,"Undervoltage on TX","Check wiring/power-supply","Bitrate limited to 1 Mbit",WARNING_POS_X, WARNING_POS_Y, GLOBAL_SCALE);
-    if (undervolt == 1) draw_message(0,"Undervoltage on RX","Check wiring/power-supply"," ",WARNING_POS_X, WARNING_POS_Y, GLOBAL_SCALE);
-
-    #if defined(FRSKY)
-    //we assume that we have a fix if we get the NS and EW values from frsky protocol
-    if (((td->ew == 'E' || td->ew == 'W') && (td->ns == 'N' || td->ns == 'S')) && !home_set){
-	setting_home = true;
-    } else { //no fix
-	setting_home = false;
-	home_counter = 0;
-    }
-    if (setting_home && !home_set){
-	//if 20 packages after each other have a fix set home
-	if (++home_counter == 20){
-	    home_set = true;
-	    home_lat = (td->ns == 'N'? 1:-1) * td->latitude;
-	    home_lon = (td->ew == 'E'? 1:-1) * td->longitude;
+    if (td->rx_status_sysair->undervolt == 1)  {
+		draw_message(0, "Undervoltage on TX","Check wiring/power-supply","Bitrate limited to 1 Mbit", 
+						warning_pos_x, warning_pos_y, global_scale);
 	}
-    }
-    #endif
-
-    #if defined(MAVLINK) || defined(SMARTPORT)
-    // if atleast 2D satfix is reported by flightcontrol
-    if (td->fix > 2 && !home_set){
-	setting_home = true;
-    } else { //no fix
-	setting_home = false;
-	home_counter = 0;
-    }
-
-    if (setting_home && !home_set){
-	//if 20 packages after each other have a fix set home
-	if (++home_counter == 20){
-	    home_set = true;
-	    home_lat = td->latitude;
-	    home_lon = td->longitude;
+    if (undervolt == 1) {
+		draw_message(0, "Undervoltage on RX","Check wiring/power-supply"," ", 
+						warning_pos_x, warning_pos_y, global_scale);
 	}
-    }
-    #endif
-
-    #if defined(LTM)
-    //LTM makes it easy: If LTM O-frame reports home fix,
-    //set home position and use home lat/long from LTM O-frame
-    if (td->home_fix == 1){
-	home_set = true;
-	home_lat = td->ltm_home_latitude;
-	home_lon = td->ltm_home_longitude;
-    }
-    #endif
-
-
+	
+	if (telemetry_type == FRSKY) {
+		//we assume that we have a fix if we get the NS and EW values from frsky protocol
+		if (((td->ew == 'E' || td->ew == 'W') && (td->ns == 'N' || td->ns == 'S')) && !home_set){
+			setting_home = true;
+		} else { //no fix
+			setting_home = false;
+			home_counter = 0;
+		}
+		if (setting_home && !home_set){
+		//if 20 packages after each other have a fix set home
+			if (++home_counter == 20) {
+				home_set = true;
+				home_lat = (td->ns == 'N'? 1:-1) * td->latitude;
+				home_lon = (td->ew == 'E'? 1:-1) * td->longitude;
+			}
+		}
+	} else if (telemetry_type == MAVLINK || telemetry_type == SMARTPORT) {
+		// if atleast 2D satfix is reported by flightcontrol
+		if (td->fix > 2 && !home_set){
+			setting_home = true;
+		} else { //no fix
+			setting_home = false;
+			home_counter = 0;
+		}
+		if (setting_home && !home_set){
+			//if 20 packages after each other have a fix set home
+			if (++home_counter == 20){
+				home_set = true;
+				home_lat = td->latitude;
+				home_lon = td->longitude;
+			}
+		}
+	} else if (telemetry_type == LTM) {
+		//LTM makes it easy: If LTM O-frame reports home fix,
+		//set home position and use home lat/long from LTM O-frame
+		if (td->home_fix == 1){
+			home_set = true;
+			home_lat = td->ltm_home_latitude;
+			home_lon = td->ltm_home_longitude;
+		}
+	}
 //    draw_osdinfos(osdfps, 20, 20, 1);
 
-
-#ifdef UPLINK_RSSI
-    draw_uplink_signal(td->rx_status_uplink->adapter[0].current_signal_dbm, td->rx_status_uplink->lost_packet_cnt, td->rx_status_rc->adapter[0].current_signal_dbm, td->rx_status_rc->lost_packet_cnt, UPLINK_RSSI_POS_X, UPLINK_RSSI_POS_Y, UPLINK_RSSI_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef KBITRATE
-    draw_kbitrate(td->rx_status_sysair->cts, td->rx_status->kbitrate, td->rx_status_sysair->bitrate_measured_kbit, td->rx_status_sysair->bitrate_kbit, td->rx_status_sysair->skipped_fec_cnt, td->rx_status_sysair->injection_fail_cnt,td->rx_status_sysair->injection_time_block,KBITRATE_POS_X, KBITRATE_POS_Y, KBITRATE_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef SYS
-    draw_sys(td->rx_status_sysair->cpuload, td->rx_status_sysair->temp, cpuload_gnd, temp_gnd, SYS_POS_X, SYS_POS_Y, SYS_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef FLIGHTMODE
-    #ifdef MAVLINK
-    draw_mode(td->mav_flightmode, td->armed, FLIGHTMODE_POS_X, FLIGHTMODE_POS_Y, FLIGHTMODE_SCALE * GLOBAL_SCALE);
-    #endif
-#endif
-
-
-#if defined(RSSI)
-    draw_rssi(td->rssi, RSSI_POS_X, RSSI_POS_Y, RSSI_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#if defined(CLIMB) && defined(MAVLINK)
-    draw_climb(td->mav_climb, CLIMB_POS_X, CLIMB_POS_Y, CLIMB_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef AIRSPEED
-    draw_airspeed((int)td->airspeed, AIRSPEED_POS_X, AIRSPEED_POS_Y, AIRSPEED_SCALE * GLOBAL_SCALE);
-#endif
-
-#ifdef GPSSPEED
-    draw_gpsspeed((int)td->speed, GPSSPEED_POS_X, GPSSPEED_POS_Y, GPSSPEED_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef BAROALT
-    draw_baroalt(td->baro_altitude, BAROALT_POS_X, BAROALT_POS_Y, BAROALT_SCALE * GLOBAL_SCALE);
-#endif
-
-#ifdef GPSALT
-    draw_gpsalt(td->altitude, GPSALT_POS_X, GPSALT_POS_Y, GPSALT_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef COURSE_OVER_GROUND
-    draw_cog((int)td->cog, COURSE_OVER_GROUND_POS_X, COURSE_OVER_GROUND_POS_Y, COURSE_OVER_GROUND_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef ALTLADDER
-    #if IMPERIAL == true
-	#if ALTLADDER_USEBAROALT == true
-	draw_alt_ladder((int)(td->baro_altitude * TO_FEET), ALTLADDER_POS_X, 50, ALTLADDER_SCALE * GLOBAL_SCALE);
-	#else
-	draw_alt_ladder((int)(td->altitude * TO_FEET), ALTLADDER_POS_X, 50, ALTLADDER_SCALE * GLOBAL_SCALE);
-    #endif
-    #else
-	#if ALTLADDER_USEBAROALT == true
-	draw_alt_ladder((int)td->baro_altitude, ALTLADDER_POS_X, 50, ALTLADDER_SCALE * GLOBAL_SCALE);
-	#else
-	draw_alt_ladder((int)td->altitude, ALTLADDER_POS_X, 50, ALTLADDER_SCALE * GLOBAL_SCALE);
-	#endif
-    #endif
-#endif
-
-
-#ifdef SPEEDLADDER
-    #if IMPERIAL == true
-	#if SPEEDLADDER_USEAIRSPEED == true
-	draw_speed_ladder((int)td->airspeed*TO_MPH, SPEEDLADDER_POS_X, 50, SPEEDLADDER_SCALE * GLOBAL_SCALE);
-	#else
-	draw_speed_ladder((int)td->speed*TO_MPH, SPEEDLADDER_POS_X, 50, SPEEDLADDER_SCALE * GLOBAL_SCALE);
-    #endif
-    #else
-	#if SPEEDLADDER_USEAIRSPEED == true
-	draw_speed_ladder((int)td->airspeed, SPEEDLADDER_POS_X, 50, SPEEDLADDER_SCALE * GLOBAL_SCALE);
-	#else
-	draw_speed_ladder((int)td->speed, SPEEDLADDER_POS_X, 50, SPEEDLADDER_SCALE * GLOBAL_SCALE);
-	#endif
-    #endif
-#endif
-
-
-#ifdef HOME_ARROW
-    #ifdef FRSKY
-//  draw_home_arrow((int)course_to((td->ns == 'N'? 1:-1) *td->latitude, (td->ns == 'E'? 1:-1) *td->longitude, home_lat, home_lon), HOME_ARROW_POS_X, HOME_ARROW_POS_Y, HOME_ARROW_SCALE * GLOBAL_SCALE);
-    #else
-    #if HOME_ARROW_USECOG == true
-    draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), td->cog, HOME_ARROW_POS_X, HOME_ARROW_POS_Y, HOME_ARROW_SCALE * GLOBAL_SCALE);
-    #else
-    draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), td->heading, HOME_ARROW_POS_X, HOME_ARROW_POS_Y, HOME_ARROW_SCALE * GLOBAL_SCALE);
-    #endif
-    if(td->heading>=360) td->heading=td->heading-360; // ?
-    #endif
-#endif
-
-
-#ifdef COMPASS
-    #if COMPASS_USECOG == true
-    draw_compass(td->cog, course_to(home_lat, home_lon, td->latitude, td->longitude), 50, COMPASS_POS_Y, COMPASS_SCALE * GLOBAL_SCALE);
-    #else
-    draw_compass(td->heading, course_to(home_lat, home_lon, td->latitude, td->longitude), 50, COMPASS_POS_Y, COMPASS_SCALE * GLOBAL_SCALE);
-    #endif
-#endif
-
-
-#ifdef BATT_STATUS
-    draw_batt_status(td->voltage, td->ampere, BATT_STATUS_POS_X, BATT_STATUS_POS_Y, BATT_STATUS_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef POSITION
-    #if defined(FRSKY)
-    draw_position((td->ns == 'N'? 1:-1) * td->latitude, (td->ew == 'E'? 1:-1) * td->longitude, POSITION_POS_X, POSITION_POS_Y, POSITION_SCALE * GLOBAL_SCALE);
-    #endif
-    draw_position(td->latitude, td->longitude, POSITION_POS_X, POSITION_POS_Y, POSITION_SCALE * GLOBAL_SCALE);
-#endif
-
-
-#ifdef DISTANCE
-	#ifdef FRSKY
-	draw_home_distance((int)distance_between(home_lat, home_lon, (td->ns == 'N'? 1:-1) *td->latitude, (td->ns == 'E'? 1:-1) *td->longitude), home_set, DISTANCE_POS_X, DISTANCE_POS_Y, DISTANCE_SCALE * GLOBAL_SCALE);
-	#elif defined(LTM) || defined(MAVLINK) || defined(SMARTPORT)
-        draw_home_distance((int)distance_between(home_lat, home_lon, td->latitude, td->longitude), home_set, DISTANCE_POS_X, DISTANCE_POS_Y, DISTANCE_SCALE * GLOBAL_SCALE);
-	#endif
-#endif
-
-
-#ifdef DOWNLINK_RSSI
-    int i;
-    int best_dbm = -1000;
-    int ac = td->rx_status->wifi_adapter_cnt;
-
-    no_signal=true;
-    for(i=0; i<ac; ++i) { // find out which card has best signal (and if atleast one card has a signal)
-	if (td->rx_status->adapter[i].signal_good == 1) {
-    	    if (best_dbm < td->rx_status->adapter[i].current_signal_dbm) best_dbm = td->rx_status->adapter[i].current_signal_dbm;
+	if (i_uplink_rssi_en) {
+		draw_uplink_signal(td->rx_status_uplink->adapter[0].current_signal_dbm, td->rx_status_uplink->lost_packet_cnt, 
+							td->rx_status_rc->adapter[0].current_signal_dbm, td->rx_status_rc->lost_packet_cnt, 
+							i_uplink_rssi_pos_x, i_uplink_rssi_pos_y, i_uplink_rssi_scale * i_global_scale);
 	}
-	if (td->rx_status->adapter[i].signal_good == 1) no_signal=false;
+
+	if (i_kbitrate_en) {
+		draw_kbitrate(td->rx_status_sysair->cts, td->rx_status->kbitrate, td->rx_status_sysair->bitrate_measured_kbit, 
+						td->rx_status_sysair->bitrate_kbit, td->rx_status_sysair->skipped_fec_cnt, 
+						td->rx_status_sysair->injection_fail_cnt,td->rx_status_sysair->injection_time_block,
+						i_kbitrate_pos_x, i_kbitrate_pos_y, i_kbitrate_scale * i_global_scale);
+	}
+
+	if (i_sys_en) {
+		draw_sys(td->rx_status_sysair->cpuload, td->rx_status_sysair->temp, cpuload_gnd, temp_gnd, 
+					i_sys_pos_x, i_sys_pos_y, i_sys_scale * i_global_scale);
+	}
+
+	if (i_flightmode_en && telemetry_type == MAVLINK) {
+		draw_mode(td->mav_flightmode, td->armed, 
+					i_flightmode_pos_x, i_flightmode_pos_y, i_flightmode_scale * i_global_scale);
     }
+	
+	if (i_rssi_en) {
+		draw_rssi(td->rssi, i_rssi_pos_x, i_rssi_pos_y, i_rssi_scale * i_global_scale);
+	}
 
-    draw_total_signal(best_dbm, td->rx_status->received_block_cnt, td->rx_status->damaged_block_cnt, td->rx_status->lost_packet_cnt, td->rx_status->received_packet_cnt, td->rx_status->lost_per_block_cnt, DOWNLINK_RSSI_POS_X, DOWNLINK_RSSI_POS_Y, DOWNLINK_RSSI_SCALE * GLOBAL_SCALE);
+	if (i_climb_en && telemetry_type == MAVLINK) {
+		draw_climb(td->mav_climb, i_climb_pos_x, i_climb_pos_y, i_climb_scale * i_global_scale);
+	}
 
-    #ifdef DOWNLINK_RSSI_DETAILED
-    for(i=0; i<ac; ++i) {
-        draw_card_signal(td->rx_status->adapter[i].current_signal_dbm, td->rx_status->adapter[i].signal_good, i, ac, td->rx_status->tx_restart_cnt, td->rx_status->adapter[i].received_packet_cnt, td->rx_status->adapter[i].wrong_crc_cnt, td->rx_status->adapter[i].type, td->rx_status->received_packet_cnt, td->rx_status->lost_packet_cnt, DOWNLINK_RSSI_DETAILED_POS_X, DOWNLINK_RSSI_DETAILED_POS_Y, DOWNLINK_RSSI_DETAILED_SCALE * GLOBAL_SCALE);
-    }
-    #endif
-#endif
+	if (i_airspeed_en) {
+		draw_airspeed((int)td->airspeed, i_airspeed_pos_x, i_airspeed_pos_y, i_airspeed_scale * i_global_scale);
+	}
 
+	if (i_gpsspeed_en) {
+		draw_gpsspeed((int)td->speed, i_gpsspeed_pos_x, i_gpsspeed_pos_y, i_gpsspeed_scale * i_global_scale);
+	}
 
-#ifdef SAT
-    #if defined(FRSKY)
-    //we assume that we have a fix if we get the NS and EW values from frsky protocol
-    if ((td->ew == 'E' || td->ew == 'W') && (td->ns == 'N' || td->ns == 'S')){
-	draw_sat(0, 2, SAT_POS_X, SAT_POS_Y, SAT_SCALE * GLOBAL_SCALE);
-    } else { //no fix
-	draw_sat(0, 0, SAT_POS_X, SAT_POS_Y, SAT_SCALE * GLOBAL_SCALE);
-    }
-    #elif defined(MAVLINK) || defined(SMARTPORT) || defined(LTM)
-    draw_sat(td->sats, td->fix, SAT_POS_X, SAT_POS_Y, SAT_SCALE * GLOBAL_SCALE);
-    #endif
-#endif
+	if (i_baroalt_en) {
+		draw_baroalt(td->baro_altitude, i_baroalt_pos_x, i_baroalt_pos_y, i_baroalt_scale * i_global_scale);
+	}
+	
+	if (i_gpsalt_en) {
+		draw_gpsalt(td->altitude, i_gpsalt_pos_x, i_gpsalt_pos_y, i_gpsalt_scale * i_global_scale);
+	}
 
+	if (i_course_over_ground_en) {
+		draw_cog((int)td->cog, i_course_over_ground_pos_x, i_course_over_ground_pos_y, 
+					i_course_over_ground_scale * i_global_scale);
+	}
 
-#ifdef BATT_GAUGE
-    draw_batt_gauge(((td->voltage/CELLS)-CELL_MIN)/(CELL_MAX-CELL_MIN)*100, BATT_GAUGE_POS_X, BATT_GAUGE_POS_Y, BATT_GAUGE_SCALE * GLOBAL_SCALE);
-#endif
+	if (i_altladder_en) {
+		if (i_imperial_en) {
+			if (i_altladder_usebaroalt_en) {
+				draw_alt_ladder((int)(td->baro_altitude * TO_FEET), i_altladder_pos_x, 50, i_altladder_scale * i_global_scale);
+			} else {
+				draw_alt_ladder((int)(td->altitude * TO_FEET), i_altladder_pos_x, 50, i_altladder_scale * i_global_scale);
+			}
+		} else {
+			if (i_altladder_usebaroalt_en) {
+				draw_alt_ladder((int)td->baro_altitude, i_altladder_pos_x, 50, i_altladder_scale * i_global_scale);
+			} else {
+				draw_alt_ladder((int)td->altitude, i_altladder_pos_x, 50, i_altladder_scale * i_global_scale);
+			}
+		}
+		
+	}
+	
+	if (i_speedladder_en) {
+		if (i_imperial_en) {
+			if (i_speedladder_useairspeed_en) {
+				draw_speed_ladder((int)td->airspeed * TO_MPH, i_speedladder_pos_x, 50, i_speedladder_scale * i_global_scale);
+			} else {
+				draw_speed_ladder((int)td->speed * TO_MPH, i_speedladder_pos_x, 50, i_speedladder_scale * i_global_scale);
+			}
+		} else {
+			if (i_speedladder_useairspeed_en) {
+				draw_speed_ladder((int)td->airspeed, i_speedladder_pos_x, 50, i_speedladder_scale * i_global_scale);
+			} else {
+				draw_speed_ladder((int)td->speed, i_speedladder_pos_x, 50, i_speedladder_scale * i_global_scale);
+			}
+		}
+	}
 
+	if (i_home_arrow_en) {
+		if (telemetry_type == FRSKY) {
+			draw_home_arrow((int)course_to((td->ns == 'N'? 1:-1) *td->latitude, (td->ns == 'E'? 1:-1) *td->longitude, home_lat, home_lon), 
+							i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_scale * i_global_scale);
+		} else {
+			if (i_home_arrow_usecog_en) {
+				draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), td->cog, 
+								i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_scale * i_global_scale);
+			} else {
+				draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), td->heading, 
+								i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_scale * i_global_scale);
+			}
+			if(td->heading>=360) td->heading=td->heading-360; // ?	//???
+		}
+	}
 
-#ifdef AHI
-#if defined(FRSKY) || defined(SMARTPORT)
-    float x_val, y_val, z_val;
-    x_val = td->x;
-    y_val = td->y;
-    z_val = td->z;
-    #if AHI_SWAP_ROLL_AND_PITCH == true
-    draw_ahi(AHI_INVERT_ROLL * TO_DEG * (atan(y_val / sqrt((x_val*x_val) + (z_val*z_val)))), AHI_INVERT_PITCH * TO_DEG * (atan(x_val / sqrt((y_val*y_val)+(z_val*z_val)))), AHI_SCALE * GLOBAL_SCALE);
-    #else
-    draw_ahi(AHI_INVERT_ROLL * TO_DEG * (atan(x_val / sqrt((y_val*y_val) + (z_val*z_val)))), AHI_INVERT_PITCH * TO_DEG * (atan(y_val / sqrt((x_val*x_val)+(z_val*z_val)))), AHI_SCALE * GLOBAL_SCALE);
-    #endif // AHI_SWAP_ROLL_AND_PITCH
-#elif defined(LTM) || defined(MAVLINK)
-    draw_ahi(AHI_INVERT_ROLL * td->roll, AHI_INVERT_PITCH * td->pitch, AHI_SCALE * GLOBAL_SCALE);
-#endif //protocol
-#endif //AHI
+	if (i_compass_en) {
+		if (i_compass_usecog_en) {
+			draw_compass(td->cog, course_to(home_lat, home_lon, td->latitude, td->longitude), 
+							50, i_compass_pos_y, i_compass_scale * i_global_scale);
+		} else {
+			draw_compass(td->heading, course_to(home_lat, home_lon, td->latitude, td->longitude), 
+							50, i_compass_pos_y, i_compass_scale * i_global_scale);
+		}
+	}
 
+	if (i_batt_status_en) {
+		draw_batt_status(td->voltage, td->ampere, 
+				i_batt_status_pos_x, i_batt_status_pos_y, i_batt_status_scale * i_global_scale);	
+	}
+
+	if (i_position_en) {
+		if (telemetry_type == FRSKY) {
+			draw_position((td->ns == 'N'? 1:-1) * td->latitude, (td->ew == 'E'? 1:-1) * td->longitude, 
+							i_position_pos_x, i_position_pos_y, i_position_scale * i_global_scale);
+		} else {
+			draw_position(td->latitude, td->longitude, 
+							i_position_pos_x, i_position_pos_y, i_position_scale * i_global_scale);
+		}
+	}
+
+	if (i_distance_en) {
+		if (telemetry_type == FRSKY) {
+			draw_home_distance( (int)distance_between(home_lat, home_lon, (td->ns == 'N'? 1:-1) 
+														*td->latitude, (td->ns == 'E'? 1:-1) *td->longitude), 
+								home_set, i_distance_pos_x, i_distance_pos_y, i_distance_scale * i_global_scale);
+		} else {
+			draw_home_distance((int)distance_between(home_lat, home_lon, td->latitude, td->longitude), home_set, 
+								i_distance_pos_x, i_distance_pos_y, i_distance_scale * i_global_scale);
+		}
+	}
+
+	if (i_downlink_rssi_en) {
+		int i;
+		int best_dbm = -1000;
+		int ac = td->rx_status->wifi_adapter_cnt;
+
+		no_signal=true;
+		// find out which card has best signal (and if atleast one card has a signal)
+		for (i=0; i<ac; ++i) { 
+			if (td->rx_status->adapter[i].signal_good == 1) {
+					if (best_dbm < td->rx_status->adapter[i].current_signal_dbm) 
+						best_dbm = td->rx_status->adapter[i].current_signal_dbm;
+			}
+			if (td->rx_status->adapter[i].signal_good == 1) 
+				no_signal=false;
+		}
+
+		draw_total_signal(best_dbm, td->rx_status->received_block_cnt, td->rx_status->damaged_block_cnt, 
+							td->rx_status->lost_packet_cnt, td->rx_status->received_packet_cnt, 
+							td->rx_status->lost_per_block_cnt, 
+							i_downlink_rssi_pos_x, i_downlink_rssi_pos_y, i_downlink_rssi_scale * i_global_scale);
+
+		if (i_downlink_rssi_detailed_en) {
+			for(i=0; i<ac; ++i) {
+				draw_card_signal(td->rx_status->adapter[i].current_signal_dbm, 
+									td->rx_status->adapter[i].signal_good, i, ac, 
+									td->rx_status->tx_restart_cnt, 
+									td->rx_status->adapter[i].received_packet_cnt, 
+									td->rx_status->adapter[i].wrong_crc_cnt, 
+									td->rx_status->adapter[i].type, td->rx_status->received_packet_cnt, 
+									td->rx_status->lost_packet_cnt, 
+									i_downlink_rssi_detailed_pos_x, i_downlink_rssi_detailed_pos_y, 
+									i_downlink_rssi_detailed_scale * i_global_scale);
+			}
+		}
+	}
+
+	if (i_sat_en) {
+		if (telemetry_type == FRSKY) {
+			//we assume that we have a fix if we get the NS and EW values from frsky protocol
+			if ((td->ew == 'E' || td->ew == 'W') && (td->ns == 'N' || td->ns == 'S')){
+				draw_sat(0, 2, i_sat_pos_x, i_sat_pos_y, i_sat_scale * i_global_scale);
+			} else { //no fix
+				draw_sat(0, 0, i_sat_pos_x, i_sat_pos_y, i_sat_scale * i_global_scale);
+			}
+		} else {
+			draw_sat(td->sats, td->fix, i_sat_pos_x, i_sat_pos_y, i_sat_scale * i_global_scale);
+		}
+	}
+
+	if (i_batt_gauge_en) {
+		    draw_batt_gauge(((td->voltage/i_cells)-i_cell_min)/(i_cell_max-i_cell_min)*100, 
+							i_batt_gauge_pos_x, i_batt_gauge_pos_y, i_batt_gauge_scale * i_global_scale);
+	}
+
+	if (i_ahi_en) {
+		if (telemetry_type == FRSKY || telemetry_type == SMARTPORT) {
+			float x_val, y_val, z_val;
+			x_val = td->x;
+			y_val = td->y;
+			z_val = td->z;
+			if (i_ahi_swap_roll_and_pitch_en) {
+				draw_ahi(i_ahi_invert_roll * TO_DEG * (atan(y_val / sqrt((x_val*x_val) + (z_val*z_val)))), 
+							i_ahi_invert_pitch * TO_DEG * (atan(x_val / sqrt((y_val*y_val)+(z_val*z_val)))), 
+							i_ahi_scale * i_global_scale);
+			} else {
+				draw_ahi(i_ahi_invert_roll * TO_DEG * (atan(x_val / sqrt((y_val*y_val) + (z_val*z_val)))), 
+							i_ahi_invert_pitch * TO_DEG * (atan(y_val / sqrt((x_val*x_val)+(z_val*z_val)))), 
+							i_ahi_scale * i_global_scale);
+			}
+		} else {
+			draw_ahi(i_ahi_invert_roll * td->roll, i_ahi_invert_pitch * td->pitch, i_ahi_scale * i_global_scale);
+		}
+	}
+	
     End(); // Render end (causes everything to be drawn on next vsync)
 }
 
@@ -443,7 +491,6 @@ void draw_mode(int mode, int armed, float pos_x, float pos_y, float scale){
     TextMid(getWidth(pos_x), getHeight(pos_y), buffer, myfont, text_scale);
 }
 
-
 void draw_rssi(int rssi, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
     VGfloat width_value = TextWidth("00", myfont, text_scale);
@@ -456,8 +503,6 @@ void draw_rssi(int rssi, float pos_x, float pos_y, float scale){
     Text(getWidth(pos_x), getHeight(pos_y), "%", myfont, text_scale*0.6);
 }
 
-
-
 void draw_cog(int cog, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
     VGfloat width_value = TextWidth("000°", myfont, text_scale);
@@ -467,8 +512,6 @@ void draw_cog(int cog, float pos_x, float pos_y, float scale){
     sprintf(buffer, "%d°", cog);
     TextEnd(getWidth(pos_x), getHeight(pos_y), buffer, myfont, text_scale);
 }
-
-
 
 void draw_climb(float climb, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -483,8 +526,6 @@ void draw_climb(float climb, float pos_x, float pos_y, float scale){
     TextEnd(getWidth(pos_x), getHeight(pos_y), buffer, myfont, text_scale);
     Text(getWidth(pos_x)+getWidth(0.4), getHeight(pos_y), "m/s", myfont, text_scale*0.6);
 }
-
-
 
 void draw_baroalt(float baroalt, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -507,8 +548,6 @@ void draw_baroalt(float baroalt, float pos_x, float pos_y, float scale){
     #endif
 }
 
-
-
 void draw_gpsalt(float gpsalt, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
 
@@ -529,8 +568,6 @@ void draw_gpsalt(float gpsalt, float pos_x, float pos_y, float scale){
     Text(getWidth(pos_x)+getWidth(0.4), getHeight(pos_y), "m", myfont, text_scale*0.6);
     #endif
 }
-
-
 
 void draw_airspeed(int airspeed, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -554,8 +591,6 @@ void draw_airspeed(int airspeed, float pos_x, float pos_y, float scale){
     #endif
 }
 
-
-
 void draw_gpsspeed(int gpsspeed, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
     VGfloat width_value = TextWidth("100", myfont, text_scale);
@@ -577,8 +612,6 @@ void draw_gpsspeed(int gpsspeed, float pos_x, float pos_y, float scale){
     Text(getWidth(pos_x)+getWidth(0.4), getHeight(pos_y), "km/h", myfont, text_scale*0.6);
     #endif
 }
-
-
 
 void draw_uplink_signal(int8_t uplink_signal, int uplink_lostpackets, int8_t rc_signal, int rc_lostpackets, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -614,8 +647,6 @@ void draw_uplink_signal(int8_t uplink_signal, int uplink_lostpackets, int8_t rc_
 
     TextEnd(getWidth(pos_x)-width_value - getWidth(0.3) * scale, getHeight(pos_y), "", osdicons, text_scale * 0.7);
 }
-
-
 
 void draw_kbitrate(int cts, int kbitrate, uint16_t kbitrate_measured_tx, uint16_t kbitrate_tx, uint32_t fecs_skipped, uint32_t injection_failed, long long injection_time,float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -673,8 +704,6 @@ void draw_kbitrate(int cts, int kbitrate, uint16_t kbitrate_measured_tx, uint16_
     sprintf(buffer, "%d/%d",injection_failed,fecs_skipped);
     Text(getWidth(pos_x)-width_value-width_symbol, getHeight(pos_y)-height_text_small-height_text_small, buffer, myfont, text_scale*0.6);
 }
-
-
 
 void draw_sys(uint8_t cpuload_air, uint8_t temp_air, uint8_t cpuload_gnd, uint8_t temp_gnd, float pos_x, float pos_y, float scale) {
     float text_scale = getWidth(2) * scale;
@@ -753,8 +782,6 @@ void draw_sys(uint8_t cpuload_air, uint8_t temp_air, uint8_t cpuload_gnd, uint8_
     Stroke(OUTLINECOLOR);
 }
 
-
-
 void draw_message(int severity, char line1[30], char line2[30], char line3[30], float pos_x, float pos_y, float scale) {
     float text_scale = getWidth(2) * scale;
     VGfloat height_text = TextHeight(myfont, text_scale*0.7)+getHeight(0.3)*scale;
@@ -784,8 +811,6 @@ void draw_message(int severity, char line1[30], char line2[30], char line3[30], 
     TextMid(getWidth(pos_x), getHeight(pos_y) - height_text-height_text_small, line3, myfont, text_scale*0.55);
 }
 
-
-
 void draw_home_arrow(float abs_heading, float craft_heading, float pos_x, float pos_y, float scale){
     //abs_heading is the absolute direction/bearing the arrow should point eg bearing to home could be 45 deg
     //because arrow is drawn relative to the osd/camera view we need to offset by craft's heading
@@ -807,8 +832,6 @@ void draw_home_arrow(float abs_heading, float craft_heading, float pos_x, float 
     Polygon(x, y, 8);
     Polyline(x, y, 8);
 }
-
-
 
 void draw_compass(float heading, float home_heading, float pos_x, float pos_y, float scale){
     float text_scale = getHeight(1.5) * scale;
@@ -875,8 +898,6 @@ void draw_compass(float heading, float home_heading, float pos_x, float pos_y, f
     TextMid(getWidth(pos_x), getHeight(pos_y) + height_element*2.5+height_text, "", osdicons, text_scale*2);
 }
 
-
-
 void draw_batt_status(float voltage, float current, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
     VGfloat height_text = TextHeight(myfont, text_scale)+getHeight(0.3)*scale;
@@ -891,8 +912,6 @@ void draw_batt_status(float voltage, float current, float pos_x, float pos_y, fl
     TextEnd(getWidth(pos_x), getHeight(pos_y)+height_text, buffer, myfont, text_scale);
     Text(getWidth(pos_x), getHeight(pos_y)+height_text, " V", myfont, text_scale*0.6);
 }
-
-
 
 void draw_position(float lat, float lon, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -909,8 +928,6 @@ void draw_position(float lat, float lon, float pos_x, float pos_y, float scale){
     sprintf(buffer, "%.6f", lat);
     TextEnd(getWidth(pos_x), getHeight(pos_y)+height_text, buffer, myfont, text_scale);
 }
-
-
 
 void draw_home_distance(int distance, bool home_fixed, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -937,8 +954,6 @@ void draw_home_distance(int distance, bool home_fixed, float pos_x, float pos_y,
     #endif
     TextEnd(getWidth(pos_x), getHeight(pos_y), buffer, myfont, text_scale);
 }
-
-
 
 void draw_alt_ladder(int alt, float pos_x, float pos_y, float scale){
     float text_scale = getHeight(1.3) * scale;
@@ -976,8 +991,6 @@ void draw_alt_ladder(int alt, float pos_x, float pos_y, float scale){
         }
     }
 }
-
-
 
 void draw_speed_ladder(int speed, float pos_x, float pos_y, float scale){
     float text_scale = getHeight(1.3) * scale;
@@ -1017,8 +1030,6 @@ void draw_speed_ladder(int speed, float pos_x, float pos_y, float scale){
 	}
     }
 }
-
-
 
 void draw_card_signal(int8_t signal, int signal_good, int card, int adapter_cnt, int restart_count, int packets, int wrongcrcs, int type, int totalpackets, int totalpacketslost, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -1067,8 +1078,6 @@ void draw_card_signal(int8_t signal, int signal_good, int card, int adapter_cnt,
     sprintf(buffer, "(%d)", lost);
     Text(getWidth(pos_x)+width_unit+getWidth(0.65)*scale, getHeight(pos_y) - card * height_text, buffer, myfont, text_scale*0.7);
 }
-
-
 
 void draw_total_signal(int8_t signal, int goodblocks, int badblocks, int packets_lost, int packets_received, int lost_per_block, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
@@ -1152,8 +1161,6 @@ void draw_total_signal(int8_t signal, int goodblocks, int badblocks, int packets
     #endif
 }
 
-
-
 void draw_sat(int sats, int fixtype, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
 
@@ -1177,8 +1184,6 @@ void draw_sat(int sats, int fixtype, float pos_x, float pos_y, float scale){
     Text(getWidth(pos_x)+getWidth(0.2), getHeight(pos_y), buffer, myfont, text_scale);
     #endif
 }
-
-
 
 void draw_batt_gauge(int remaining, float pos_x, float pos_y, float scale){
     //new stuff from fritz walter https://www.youtube.com/watch?v=EQ01b3aJ-rk
@@ -1214,8 +1219,6 @@ void draw_batt_gauge(int remaining, float pos_x, float pos_y, float scale){
     Fill(0,0,0,0.5);
     Rect(getWidth(pos_x) + stroke_x + remaining / 100.0f * cell_width, getHeight(pos_y) + stroke_y, cell_width - stroke_x*2 - remaining / 100.0f * cell_width, cell_height - stroke_y*2);
 }
-
-
 
 void draw_ahi(float roll, float pitch, float scale){
     float text_scale = getHeight(1.2) * scale;
@@ -1294,7 +1297,6 @@ void draw_osdinfos(int osdfps, float pos_x, float pos_y, float scale){
     TextEnd(getWidth(pos_x), getHeight(pos_y), buffer, myfont, text_scale);
 }
 
-
 float distance_between(float lat1, float long1, float lat2, float long2) {
     //taken from tinygps: https://github.com/mikalhart/TinyGPS/blob/master/TinyGPS.cpp#L296
     // returns distance in meters between two positions, both specified
@@ -1321,8 +1323,6 @@ float distance_between(float lat1, float long1, float lat2, float long2) {
     return delta * 6372795;
 }
 
-
-
 float course_to (float lat1, float long1, float lat2, float long2) {
     //taken from tinygps: https://github.com/mikalhart/TinyGPS/blob/master/TinyGPS.cpp#L321
     // returns course in degrees (North=0, West=270) from position 1 to position 2,
@@ -1339,8 +1339,6 @@ float course_to (float lat1, float long1, float lat2, float long2) {
     if (a2 < 0.0) a2 += M_PI*2;
     return TO_DEG*(a2);
 }
-
-
 
 void rotatePoints(float *x, float *y, float angle, int points, int center_x, int center_y){
     double cosAngle = cos(-angle * 0.017453292519);

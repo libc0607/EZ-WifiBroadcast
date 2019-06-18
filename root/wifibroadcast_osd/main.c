@@ -29,11 +29,9 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <stdio.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/types.h>
@@ -48,19 +46,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include <resolv.h>
 #include <utime.h>
+#include <iniparser.h>
 
 #include "render.h"
 #include "osdconfig.h"
 #include "telemetry.h"
-#ifdef FRSKY
-#include "frsky.h"
-#elif defined(LTM)
-#include "ltm.h"
-#elif defined(MAVLINK)
-#include "mavlink.h"
-#elif defined(SMARTPORT)
-#include "smartport.h"
-#endif
+
+#include "ltm.h"		//0
+#include "mavlink.h"	//1
+#include "frsky.h"		//2
+#include "smartport.h"	//3
 
 //#define DEBUG
 //#define DUMP_PACKET
@@ -132,46 +127,56 @@ int main(int argc, char *argv[])
 	struct sockaddr_in addr;
 	int sockfd;
 	int slen = sizeof(addr);
-	
-    fprintf(stderr,"OSD started\n=====================================\n\n");
-
+	char *udp_listen_port_char;
+	char *file = argv[1];
+	frsky_state_t fs;
+	char *telemetry_type_char;
+	telemetry_type_t telemetry_type;
+		
 	setpriority(PRIO_PROCESS, 0, 10);
 	setlocale(LC_ALL, "en_GB.UTF-8");
 	signal(SIGPIPE, SIG_IGN);
 	
-#ifdef FRSKY
-    frsky_state_t fs;
-#endif
- 
-#ifdef DEBUG
+    fprintf(stderr,"OSD started\n=====================================\n\n");
+	fprintf(stderr, "Using config file: %s\n", file);
+	load_ini(ini);
+	
+	dictionary *ini = iniparser_load(file);
+	telemetry_type_char = iniparser_getstring(ini, "osd:type", NULL);
+	if (strcmp(telemetry_type_char, "ltm") && strcmp(telemetry_type_char, "LTM")) {
+		telemetry_type = LTM;
+	} else if (strcmp(telemetry_type_char, "MAVLINK") && strcmp(telemetry_type_char, "mavlink")) {
+		telemetry_type = MAVLINK;
+	} else if (strcmp(telemetry_type_char, "FRSKY") && strcmp(telemetry_type_char, "frsky")) {
+		telemetry_type = FRSKY;
+	} else if (strcmp(telemetry_type_char, "SMARTPORT") && strcmp(telemetry_type_char, "smartport")) {
+		telemetry_type = SMARTPORT;
+	} else {
+		fprintf(stderr, "Unknown telemetry type: %s", telemetry_type_char);
+		iniparser_freedict(ini);
+		exit(EXIT_FAILURE);
+	}
+	
     fprintf(stderr,"OSD: Initializing sharedmem ...\n");
-#endif
     telemetry_init(&td);
-#ifdef DEBUG
     fprintf(stderr,"OSD: Sharedmem init done\n");
-#endif
 
-#ifdef DEBUG
 	fprintf(stderr,"OSD: Initializing render engine ...\n");
-#endif
     render_init();
-#ifdef DEBUG
 	fprintf(stderr,"OSD: Render init done\n");
-#endif
 
-	// UDP Socket
 	bzero(&addr, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(atoi(argv[1]));
-	fprintf(stderr, "UDP Listen port %s", argv[1]);
+	udp_listen_port_char = iniparser_getstring(ini, "osd:udp_port", NULL);
+	addr.sin_port = htons(atoi(udp_listen_port_char));
+	fprintf(stderr, "UDP Listen port %s\n", udp_listen_port_char);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	if ( (sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0 ){
-		fprintf(stderr, "ERROR: Could not create UDP socket!");
+		fprintf(stderr, "ERROR: Could not create UDP socket!\n");
 		exit(1);
 	}
 	bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
 	
-	// Undervolt
     fp3 = fopen("/tmp/undervolt","r");
     if(NULL == fp3) {
         perror("ERROR: Could not open /tmp/undervolt");
@@ -179,9 +184,7 @@ int main(int argc, char *argv[])
     }
     fscanf(fp3, "%d", &undervolt_gnd);
     fclose(fp3);
-#ifdef DEBUG
 	fprintf(stderr,"undervolt:%d\n",undervolt_gnd);
-#endif
 
 	// main loop
     while(1) {
@@ -211,15 +214,21 @@ int main(int argc, char *argv[])
 				perror("OSD: recvfrom");
 				exit(-1);
 			}
-#ifdef FRSKY
-			frsky_parse_buffer(&fs, &td, buf, n);
-#elif defined(LTM)
-			do_render = ltm_read(&td, buf, n);
-#elif defined(MAVLINK)
-			do_render = mavlink_read(&td, buf, n);
-#elif defined(SMARTPORT)
-			smartport_read(&td, buf, n);
-#endif
+			
+			switch (telemetry_type) {
+			case 0:
+				do_render = ltm_read(&td, buf, n);
+				break;
+			case 1:
+				do_render = mavlink_read(&td, buf, n);
+				break;
+			case 2:
+				frsky_parse_buffer(&fs, &td, buf, n);
+				break;
+			case 3:
+				smartport_read(&td, buf, n);
+				break;	
+			}
 	    }
 	    counter++;
 #ifdef DEBUG
@@ -233,7 +242,7 @@ int main(int argc, char *argv[])
 #endif
 			prev_time = current_timestamp();
 			fpscount++;
-			render(&td, cpuload_gnd, temp_gnd/1000, undervolt_gnd,fps);
+			render(&td, &ini, telemetry_type, cpuload_gnd, temp_gnd/1000, undervolt_gnd, fps);
 			long long took = current_timestamp() - prev_time;
 #ifdef DEBUG
 //			fprintf(stderr,"Render took %lldms\n", took);
@@ -277,5 +286,7 @@ int main(int argc, char *argv[])
 #endif
 		}
     }
+	iniparser_freedict(ini);
+	close(sockfd);
     return 0;
 }

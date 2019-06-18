@@ -168,6 +168,13 @@ typedef struct {
 	wifibroadcast_rx_status_t_sysair *rx_status_sysair;
 } telemetry_data_t;
 
+typedef enum{
+	LTM=0,
+	MAVLINK,
+	FRSKY,
+	SMARTPORT
+} telemetry_type_t;
+
 wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void);
 wifibroadcast_rx_status_t_osd *telemetry_wbc_status_memory_open_osd(void);
 wifibroadcast_rx_status_t_rc *telemetry_wbc_status_memory_open_rc(void);
