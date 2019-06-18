@@ -5,40 +5,40 @@ project (ezwifibroadcast)
 add_definitions(-Wall -D _GNU_SOURCE)
 
 add_executable(rx  rx.c  lib.c  radiotap.c  fec.c)
-target_link_libraries(rx rt pcap)
+target_link_libraries(rx rt pcap iniparser)
 install (TARGETS rx DESTINATION bin)
 
 add_executable(rx_rc_telemetry  rx_rc_telemetry.c  lib.c  radiotap.c)
-target_link_libraries(rx_rc_telemetry rt pcap)
+target_link_libraries(rx_rc_telemetry rt pcap iniparser)
 install (TARGETS rx_rc_telemetry DESTINATION bin)
 
 add_executable(rx_rc_telemetry_buf  rx_rc_telemetry_buf.c  lib.c  radiotap.c)
-target_link_libraries(rx_rc_telemetry_buf rt pcap)
+target_link_libraries(rx_rc_telemetry_buf rt pcap iniparser)
 install (TARGETS rx_rc_telemetry DESTINATION bin)
 
 add_executable(rx_telemetry_buf  rx_telemetry_buf.c  lib.c  radiotap.c)
-target_link_libraries(rx_telemetry_buf rt pcap)
+target_link_libraries(rx_telemetry_buf rt pcap iniparser)
 install (TARGETS rx_telemetry_buf DESTINATION bin)
 
 
 add_executable(rssirx  rssirx.c  lib.c  radiotap.c )
-target_link_libraries(rssirx rt pcap)
+target_link_libraries(rssirx rt pcap iniparser)
 install (TARGETS rssirx DESTINATION bin)
 
 add_executable(rssitx  rssitx.c  lib.c  radiotap.c )
-target_link_libraries(rssitx rt pcap)
+target_link_libraries(rssitx rt pcap iniparser)
 install (TARGETS rssitx DESTINATION bin)
 
 add_executable(tx_rawsock  tx_rawsock.c  lib.c  fec.c)
-target_link_libraries(tx_rawsock rt pcap)
+target_link_libraries(tx_rawsock rt pcap iniparser)
 install (TARGETS tx_rawsock DESTINATION bin)
 
 add_executable(tx_telemetry  tx_telemetry.c  lib.c  fec.c)
-target_link_libraries(tx_telemetry rt pcap)
+target_link_libraries(tx_telemetry rt pcap iniparser)
 install (TARGETS tx_telemetry DESTINATION bin)
 
 add_executable(tx_measure  tx_measure.c  lib.c  fec.c)
-target_link_libraries(tx_measure rt pcap)
+target_link_libraries(tx_measure rt pcap iniparser)
 install (TARGETS tx_measure DESTINATION bin)
 
 add_executable(rx_status  rx_status.c)
@@ -58,19 +58,19 @@ target_link_libraries(check_alive rt pcap)
 install (TARGETS check_alive DESTINATION bin)
 
 add_executable(rssi_forward  rssi_forward.c )
-target_link_libraries(rssi_forward rt pcap)
+target_link_libraries(rssi_forward rt pcap iniparser)
 install (TARGETS rssi_forward DESTINATION bin)
 
 add_executable(rssi_forward_in  rssi_forward_in.c )
-target_link_libraries(rssi_forward_in rt pcap)
+target_link_libraries(rssi_forward_in rt pcap iniparser)
 install (TARGETS rssi_forward_in DESTINATION bin)
 
 add_executable(rssi_forward_stdout  rssi_forward_stdout.c )
-target_link_libraries(rssi_forward_stdout rt pcap)
+target_link_libraries(rssi_forward_stdout rt pcap iniparser)
 install (TARGETS rssi_forward_stdout DESTINATION bin)
 
 add_executable(rssi_write_shmem  rssi_write_shmem.c )
-target_link_libraries(rssi_write_shmem rt pcap)
+target_link_libraries(rssi_write_shmem rt pcap iniparser)
 install (TARGETS rssi_write_shmem DESTINATION bin)
 
 add_executable(sharedmem_init_rx  sharedmem_init_rx.c  lib.c)
