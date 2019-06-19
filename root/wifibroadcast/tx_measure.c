@@ -26,7 +26,7 @@
 #include <netpacket/packet.h>
 #include <net/if.h>
 #include <netinet/ether.h>
-//#include <arpa/inet.h>
+#include <arpa/inet.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <getopt.h>
 #include <limits.h>
-
+#include <iniparser.h>
 
 #define MAX_PACKET_LENGTH 4192
 #define MAX_USER_PACKET_LENGTH 2278
@@ -55,8 +55,8 @@ static int open_sock (char *ifname) {
 //    sock = socket (PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     sock = socket (AF_PACKET, SOCK_RAW, 0);
     if (sock == -1) {
-    fprintf(stderr, "Error:\tSocket failed\n");
-    exit(1);
+		fprintf(stderr, "Error:\tSocket failed\n");
+		exit(1);
     }
 
     ll_addr.sll_family = AF_PACKET;
@@ -66,23 +66,23 @@ static int open_sock (char *ifname) {
     strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 
     if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) {
-    fprintf(stderr, "Error:\tioctl(SIOCGIFINDEX) failed\n");
-    exit(1);
+		fprintf(stderr, "Error:\tioctl(SIOCGIFINDEX) failed\n");
+		exit(1);
     }
 
     ll_addr.sll_ifindex = ifr.ifr_ifindex;
 
     if (ioctl(sock, SIOCGIFHWADDR, &ifr) < 0) {
-    fprintf(stderr, "Error:\tioctl(SIOCGIFHWADDR) failed\n");
-    exit(1);
+		fprintf(stderr, "Error:\tioctl(SIOCGIFHWADDR) failed\n");
+		exit(1);
     }
 
     memcpy(ll_addr.sll_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 
     if (bind (sock, (struct sockaddr *)&ll_addr, sizeof(ll_addr)) == -1) {
-    fprintf(stderr, "Error:\tbind failed\n");
-    close(sock);
-    exit(1);
+		fprintf(stderr, "Error:\tbind failed\n");
+		close(sock);
+		exit(1);
     }
 
     if (sock == -1 ) {
@@ -128,24 +128,24 @@ static u8 u8aIeeeHeader_rts[] = {
 int flagHelp = 0;
 
 void usage(void) {
-    printf(
-	"tx_measure (c)2017 by Rodizio. Based on wifibroadcast tx by Befinitiv. Licensed under GPL2\n"
-	"\n"
-	"Usage: tx_measure [options] <interfaces>\n"
-	"\n"
-	"Options:\n"
-	"-b <count>  Number of data packets in a block (default 8). Needs to match with rx.\n"
-	"-r <count>  Number of FEC packets per block (default 4). Needs to match with rx.\n"
-	"-f <bytes>  Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx.\n"
-	"-m <bytes>  Minimum number of bytes per frame (default: 0)\n"
-	"-p <port>   Port number 0-255 (default 0)\n"
-	"-t <type>   Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
-	"-d <rate>   Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
-	"-y <mode>   Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
-        "\n"
-        "Example:\n"
-        "  tx_measure -p 0 -b 8 -r 4 -f 1024 -t 1 -d 24 -y 0 wlan0\n"
-        "\n", 1024, MAX_USER_PACKET_LENGTH);
+	printf(
+		"tx_measure (c)2017 by Rodizio. Based on wifibroadcast tx by Befinitiv. Licensed under GPL2\n"
+		"Dirty mod by libc0607@Github\n"
+		"\n"
+		"Usage: tx_measure <config.ini>\n"
+		"\n"
+		"config.ini example:\n"
+		"\t[tx]\n"
+		"\tport=0             # Port number 0-255 (default 0)\n"
+		"\tdatanum=8          # Number of data packets in a block (default 8). Needs to match with rx\n"
+		"\tfecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
+		"\tpacketsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
+		"\tframetype=0        # Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
+		"\trate=6             # Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
+		"\tmode=0             # Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
+		"\tnic=wlan0          # Wi-Fi interface\n"
+		, 1024, MAX_USER_PACKET_LENGTH
+	);
     exit(1);
 }
 
@@ -163,70 +163,70 @@ int packet_header_init(uint8_t *packet_header, int type, int rate, int port) {
 
 	int port_encoded = 0;
 
-        switch (rate) {
-            case 2:
-                u8aRadiotapHeader[8]=0x04;
-                break;
-            case 5: // 5.5
-                u8aRadiotapHeader[8]=0x0b;
-                break;
-            case 6:
-                u8aRadiotapHeader[8]=0x0c;
-                break;
-            case 11:
-                u8aRadiotapHeader[8]=0x16;
-                break;
-            case 12:
-                u8aRadiotapHeader[8]=0x18;
-                break;
-            case 18:
-                u8aRadiotapHeader[8]=0x24;
-                break;
-            case 24:
-                u8aRadiotapHeader[8]=0x30;
-                break;
-            case 36:
-                u8aRadiotapHeader[8]=0x48;
-                break;
-            case 48:
-                u8aRadiotapHeader[8]=0x60;
-                break;
-            default:
-                fprintf(stderr, "ERROR: Wrong or no data rate specified (see -d parameter)\n");
-                exit(1);
-                break;
-        }
+	switch (rate) {
+	case 2:
+		u8aRadiotapHeader[8]=0x04;
+		break;
+	case 5: // 5.5
+		u8aRadiotapHeader[8]=0x0b;
+		break;
+	case 6:
+		u8aRadiotapHeader[8]=0x0c;
+		break;
+	case 11:
+		u8aRadiotapHeader[8]=0x16;
+		break;
+	case 12:
+		u8aRadiotapHeader[8]=0x18;
+		break;
+	case 18:
+		u8aRadiotapHeader[8]=0x24;
+		break;
+	case 24:
+		u8aRadiotapHeader[8]=0x30;
+		break;
+	case 36:
+		u8aRadiotapHeader[8]=0x48;
+		break;
+	case 48:
+		u8aRadiotapHeader[8]=0x60;
+		break;
+	default:
+		fprintf(stderr, "ERROR: Wrong or no data rate specified\n");
+		exit(1);
+		break;
+	}
 
 	memcpy(packet_header, u8aRadiotapHeader, sizeof(u8aRadiotapHeader));
 	pu8 += sizeof(u8aRadiotapHeader);
 
-        switch (type) {
-            case 0: // short DATA frame (for Ralink video and telemetry)
-                fprintf(stderr, "using short DATA frames\n");
-                port_encoded = (port * 2) + 1;
-                u8aIeeeHeader_data_short[4] = port_encoded; // 1st byte of RA mac is the port
-                memcpy(pu8, u8aIeeeHeader_data_short, sizeof (u8aIeeeHeader_data_short)); //copy data short header to pu8
-                pu8 += sizeof (u8aIeeeHeader_data_short);
-                break;
-            case 1: // standard DATA frame (for Atheros video with CTS protection)
-                fprintf(stderr, "using standard DATA frames\n");
-                port_encoded = (port * 2) + 1;
-                u8aIeeeHeader_data[4] = port_encoded; // 1st byte of RA mac is the port
-                memcpy(pu8, u8aIeeeHeader_data, sizeof (u8aIeeeHeader_data)); //copy data header to pu8
-                pu8 += sizeof (u8aIeeeHeader_data);
-                break;
-            case 2: // RTS frame
-                fprintf(stderr, "using RTS frames\n");
-                port_encoded = (port * 2) + 1;
-                u8aIeeeHeader_rts[4] = port_encoded; // 1st byte of RA mac is the port
-                memcpy(pu8, u8aIeeeHeader_rts, sizeof (u8aIeeeHeader_rts));
-                pu8 += sizeof (u8aIeeeHeader_rts);
-                break;
-            default:
-                fprintf(stderr, "ERROR: Wrong or no frame type specified (see -t parameter)\n");
-                exit(1);
-                break;
-        }
+	switch (type) {
+	case 0: // short DATA frame (for Ralink video and telemetry)
+		fprintf(stderr, "using short DATA frames\n");
+		port_encoded = (port * 2) + 1;
+		u8aIeeeHeader_data_short[4] = port_encoded; // 1st byte of RA mac is the port
+		memcpy(pu8, u8aIeeeHeader_data_short, sizeof (u8aIeeeHeader_data_short)); //copy data short header to pu8
+		pu8 += sizeof (u8aIeeeHeader_data_short);
+		break;
+	case 1: // standard DATA frame (for Atheros video with CTS protection)
+		fprintf(stderr, "using standard DATA frames\n");
+		port_encoded = (port * 2) + 1;
+		u8aIeeeHeader_data[4] = port_encoded; // 1st byte of RA mac is the port
+		memcpy(pu8, u8aIeeeHeader_data, sizeof (u8aIeeeHeader_data)); //copy data header to pu8
+		pu8 += sizeof (u8aIeeeHeader_data);
+		break;
+	case 2: // RTS frame
+		fprintf(stderr, "using RTS frames\n");
+		port_encoded = (port * 2) + 1;
+		u8aIeeeHeader_rts[4] = port_encoded; // 1st byte of RA mac is the port
+		memcpy(pu8, u8aIeeeHeader_rts, sizeof (u8aIeeeHeader_rts));
+		pu8 += sizeof (u8aIeeeHeader_rts);
+		break;
+	default:
+		fprintf(stderr, "ERROR: Wrong or no frame type specified (see -t parameter)\n");
+		exit(1);
+		break;
+	}
 
 	//determine the length of the header
 	return pu8 - packet_header;
@@ -261,7 +261,9 @@ void fifo_open(fifo_t *fifo, int fifo_count) {
 }
 
 
-void fifo_create_select_set(fifo_t *fifo, int fifo_count, fd_set *fifo_set, int *max_fifo_fd) {
+void fifo_create_select_set(fifo_t *fifo, int fifo_count, fd_set *fifo_set, 
+								int *max_fifo_fd) 
+{
 	FD_ZERO(fifo_set);
 	FD_SET(fifo[0].fd, fifo_set);
 
@@ -271,7 +273,11 @@ void fifo_create_select_set(fifo_t *fifo, int fifo_count, fd_set *fifo_set, int 
 }
 
 
-void pb_transmit_packet(int seq_nr, uint8_t *packet_transmit_buffer, int packet_header_len, const uint8_t *packet_data, int packet_length, int num_interfaces, int param_transmission_mode, int best_adapter) {
+void pb_transmit_packet(int seq_nr, uint8_t *packet_transmit_buffer, 
+						int packet_header_len, const uint8_t *packet_data, 
+						int packet_length, int num_interfaces, 
+						int param_transmission_mode, int best_adapter) 
+{
     int i = 0;
 
     //add header outside of FEC
@@ -285,18 +291,25 @@ void pb_transmit_packet(int seq_nr, uint8_t *packet_transmit_buffer, int packet_
 
 
     if (best_adapter == 5) {
-	for(i=0; i<num_interfaces; ++i) {
-	    if (write(socks[i], packet_transmit_buffer, plen) < 0 ) fprintf(stderr, "!");
-	}
+		for(i=0; i<num_interfaces; ++i) {
+			if (write(socks[i], packet_transmit_buffer, plen) < 0 ) 
+				fprintf(stderr, "!");
+		}
     } else {
-	if (write(socks[best_adapter], packet_transmit_buffer, plen) < 0 ) fprintf(stderr, "!");
+		if (write(socks[best_adapter], packet_transmit_buffer, plen) < 0 ) 
+			fprintf(stderr, "!");
     }
 
 
 }
 
 
-void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_length, uint8_t *packet_transmit_buffer, int packet_header_len, int data_packets_per_block, int fec_packets_per_block, int num_interfaces, int param_transmission_mode, telemetry_data_t *td1) {
+void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_length, 
+						uint8_t *packet_transmit_buffer, int packet_header_len, 
+						int data_packets_per_block, int fec_packets_per_block, 
+						int num_interfaces, int param_transmission_mode, 
+						telemetry_data_t *td1) 
+{
 	int i;
 	uint8_t *data_blocks[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK];
 	uint8_t fec_pool[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK][MAX_USER_PACKET_LENGTH];
@@ -310,12 +323,9 @@ void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_l
 		for(i=0; i<fec_packets_per_block; ++i) {
 			fec_blocks[i] = fec_pool[i];
 		}
-
-		fec_encode(packet_length, data_blocks, data_packets_per_block, (unsigned char **)fec_blocks, fec_packets_per_block);
+		fec_encode(packet_length, data_blocks, data_packets_per_block, 
+					(unsigned char **)fec_blocks, fec_packets_per_block);
 	}
-
-//	if(td1->rx_status != NULL) {
-//	}
 
 	uint8_t *pb = packet_transmit_buffer;
 	pb += packet_header_len;
@@ -326,7 +336,7 @@ void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_l
 	int seq_nr_tmp = *seq_nr;
 	while(di < data_packets_per_block || fi < fec_packets_per_block) {
 	    int best_adapter = 0;
-	    if(param_transmission_mode == 1) {
+	    if (param_transmission_mode == 1) {
     		int i;
     		int ac = td1->rx_status->wifi_adapter_cnt;
     		int best_dbm = -1000;
@@ -334,25 +344,31 @@ void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_l
     		// find out which card has best signal
     		for(i=0; i<ac; ++i) {
     		    if (best_dbm < td1->rx_status->adapter[i].current_signal_dbm) {
-    			best_dbm = td1->rx_status->adapter[i].current_signal_dbm;
-        		best_adapter = i;
+					best_dbm = td1->rx_status->adapter[i].current_signal_dbm;
+					best_adapter = i;
     		    }
     		}
     		printf ("bestadapter: %d (%d dbm)\n",best_adapter, best_dbm);
 	    } else {
-		best_adapter = 5; // set to 5 to let transmit packet function know it shall transmit on all interfaces
+			best_adapter = 5; 
+			// set to 5 to let transmit packet function know 
+			// it shall transmit on all interfaces
 	    }
 
-	    if(di < data_packets_per_block) {
-		pb_transmit_packet(seq_nr_tmp, packet_transmit_buffer, packet_header_len, data_blocks[di], packet_length,num_interfaces, param_transmission_mode,best_adapter);
-		seq_nr_tmp++;
-		di++;
+	    if (di < data_packets_per_block) {
+			pb_transmit_packet(seq_nr_tmp, packet_transmit_buffer, packet_header_len, 
+								data_blocks[di], packet_length, num_interfaces, 
+								param_transmission_mode,best_adapter);
+			seq_nr_tmp++;
+			di++;
 	    }
 
-	    if(fi < fec_packets_per_block) {
-		pb_transmit_packet(seq_nr_tmp, packet_transmit_buffer, packet_header_len, fec_blocks[fi], packet_length,num_interfaces,param_transmission_mode,best_adapter);
-		seq_nr_tmp++;
-		fi++;
+	    if (fi < fec_packets_per_block) {
+			pb_transmit_packet(seq_nr_tmp, packet_transmit_buffer, packet_header_len, 
+								fec_blocks[fi], packet_length, num_interfaces,
+								param_transmission_mode, best_adapter);
+			seq_nr_tmp++;
+			fi++;
 	    }	
 	}
 
@@ -369,32 +385,21 @@ void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_l
 wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
 
     int fd = 0;
-//    int sharedmem = 0;
+	fd = shm_open("/wifibroadcast_rx_status_0", O_RDWR, S_IRUSR | S_IWUSR);
+	if(fd < 0) {
+		fprintf(stderr, "Could not open wifibroadcast rx status ...\n");
+	}
 
-    // TODO: Clean up rx_status shared memory handling
-//    if (transmission_mode == 1) {
-//	while(sharedmem == 0) {
-    	    fd = shm_open("/wifibroadcast_rx_status_0", O_RDWR, S_IRUSR | S_IWUSR);
-        	if(fd < 0) {
-    //        	    fprintf(stderr, "Could not open wifibroadcast rx status - retrying ...\n");
-        	} else {
-//            	    sharedmem = 1;
-        	}
-//        	usleep(150000);
-//	}
+	if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) {
+		perror("ftruncate");
+		exit(1);
+	}
 
-//        if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t)) == -1) {
-//                perror("ftruncate");
-//                exit(1);
-//        }
-
-        void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-//        if (retval == MAP_FAILED) {
-//                perror("mmap");
-//                exit(1);
-//        }
-//    }
-
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) {
+		perror("mmap");
+		exit(1);        
+	}
     return (wifibroadcast_rx_status_t*)retval;
 }
 
@@ -412,16 +417,14 @@ long long current_timestamp() {
 
 int smallest(int* values, int count)
 {
-        int smallest_value = INT_MAX;
-        int ii = 0;
-        for (; ii < count; ++ii)
-        {
-                if (values[ii] < smallest_value)
-                {
-                        smallest_value = values[ii];
-                }
-        }
-        return smallest_value;
+	int smallest_value = INT_MAX;
+	int ii = 0;
+	for (; ii < count; ++ii) {
+		if (values[ii] < smallest_value) {
+			smallest_value = values[ii];
+		}
+	}
+	return smallest_value;
 }
 
 
@@ -447,82 +450,33 @@ int main(int argc, char *argv[]) {
     int param_packet_type = 99;
     int param_data_rate = 99;
     int param_transmission_mode = 0;
-
-    //int i = 0;
-
-
-    while (1) {
-	int nOptionIndex;
-	static const struct option optiona[] = {
-	    { "help", no_argument, &flagHelp, 1 },
-	    { 0, 0, 0, 0 }
-	};
-
-	int c = getopt_long(argc, argv, "h:r:f:p:b:m:t:d:y:", optiona, &nOptionIndex);
-	if (c == -1) break;
-	switch (c) {
-	    case 0: // long option
-		break;
-
-	    case 'h': // help
+	if (argc != 2) {
 		usage();
-		break;
-
-	    case 'r': // retransmissions
-		param_fec_packets_per_block = atoi(optarg);
-		break;
-
-	    case 'f': // MTU
-		param_packet_length = atoi(optarg);
-		break;
-
-	    case 'p': //port
-		param_port = atoi(optarg);
-		break;
-
-	    case 'b': //retransmission block size
-		param_data_packets_per_block = atoi(optarg);
-		break;
-
-	    case 'm': //minimum packet length
-		param_min_packet_length = atoi(optarg);
-		break;
-
-	    case 't': // packet type
-		param_packet_type = atoi(optarg);
-		break;
-
-	    case 'd': // data rate
-		param_data_rate = atoi(optarg);
-		break;
-
-	    case 'y': // transmission mode
-		param_transmission_mode = atoi(optarg);
-		break;
-
-	    default:
-		fprintf(stderr, "unknown switch %c\n", c);
-		usage();
-		break;
-
 	}
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	
+	param_fec_packets_per_block = iniparser_getint(ini, "tx:fecnum", 0);
+	param_data_packets_per_block = iniparser_getint(ini, "tx:datanum", 0); 
+	param_packet_length = iniparser_getint(ini, "tx:packetsize", 0);
+	param_port = iniparser_getint(ini, "tx:port", 0);
+	param_packet_type = iniparser_getint(ini, "tx:frametype", 0);
+	param_data_rate = iniparser_getint(ini, "tx:rate", 0);
+	param_transmission_mode = iniparser_getint(ini, "tx:mode", 0);
+
+    if (param_packet_length > MAX_USER_PACKET_LENGTH) {
+		fprintf(stderr, "ERROR; Packet length is limited to %d bytes (you requested %d bytes)\n", MAX_USER_PACKET_LENGTH, param_packet_length);
+		return (1);
     }
 
-    if (optind >= argc) usage();
-
-    if(param_packet_length > MAX_USER_PACKET_LENGTH) {
-	fprintf(stderr, "ERROR; Packet length is limited to %d bytes (you requested %d bytes)\n", MAX_USER_PACKET_LENGTH, param_packet_length);
-	return (1);
+    if (param_min_packet_length > param_packet_length) {
+		fprintf(stderr, "ERROR; Minimum packet length is higher than maximum packet length (%d > %d)\n", param_min_packet_length, param_packet_length);
+		return (1);
     }
 
-    if(param_min_packet_length > param_packet_length) {
-	fprintf(stderr, "ERROR; Minimum packet length is higher than maximum packet length (%d > %d)\n", param_min_packet_length, param_packet_length);
-	return (1);
-    }
-
-    if(param_data_packets_per_block > MAX_DATA_OR_FEC_PACKETS_PER_BLOCK || param_fec_packets_per_block > MAX_DATA_OR_FEC_PACKETS_PER_BLOCK) {
-	fprintf(stderr, "ERROR: Data and FEC packets per block are limited to %d (you requested %d data, %d FEC)\n", MAX_DATA_OR_FEC_PACKETS_PER_BLOCK, param_data_packets_per_block, param_fec_packets_per_block);
-	return (1);
+    if (param_data_packets_per_block > MAX_DATA_OR_FEC_PACKETS_PER_BLOCK || param_fec_packets_per_block > MAX_DATA_OR_FEC_PACKETS_PER_BLOCK) {
+		fprintf(stderr, "ERROR: Data and FEC packets per block are limited to %d (you requested %d data, %d FEC)\n", MAX_DATA_OR_FEC_PACKETS_PER_BLOCK, param_data_packets_per_block, param_fec_packets_per_block);
+		return (1);
     }
 
     packet_header_length = packet_header_init(packet_transmit_buffer, param_packet_type, param_data_rate, param_port);
@@ -539,14 +493,20 @@ int main(int argc, char *argv[]) {
 
     int x = optind;
     int num_interfaces = 0;
-
+/* 
     while(x < argc && num_interfaces < 4) {
-	socks[num_interfaces] = open_sock(argv[x]);
+		socks[num_interfaces] = open_sock(argv[x]);
         ++num_interfaces;
         ++x;
         usleep(20000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
-    }
-
+    } 
+*/
+	// ini supports only support one interface now
+	// should be fixed later
+	socks[num_interfaces] = open_sock(iniparser_getstring(ini, "tx:nic", NULL));
+	num_interfaces = 1;
+	usleep(20000);
+	
     long long prev_time = 0;
     long long now = 0;
 
@@ -560,72 +520,78 @@ int main(int argc, char *argv[]) {
 
     while (!fBrokenSocket) {
 
-	packet_buffer_t *pb = fifo[0].pbl + fifo[0].curr_pb;
+		packet_buffer_t *pb = fifo[0].pbl + fifo[0].curr_pb;
 
-	//if the buffer is fresh we add a payload header
-	if(pb->len == 0) {
-	    pb->len += sizeof(payload_header_t); //make space for a length field (will be filled later)
-	}
+		//if the buffer is fresh we add a payload header
+		if (pb->len == 0) {
+			//make space for a length field (will be filled later)
+			pb->len += sizeof(payload_header_t); 
+		}
 
-	//read the data
-	int inl = read(fifo[0].fd, pb->data + pb->len, param_packet_length - pb->len);
-	if(inl < 0 || inl > param_packet_length-pb->len) {
-	    perror("reading stdin");
-	    return 1;
-	}
+		//read the data
+		int inl = read(fifo[0].fd, pb->data + pb->len, param_packet_length - pb->len);
+		if (inl < 0 || inl > param_packet_length-pb->len) {
+			perror("reading stdin");
+			return 1;
+		}
 
-	if(inl == 0) {
-	    //EOF
-	    fprintf(stderr, "Warning: Lost connection to stdin. Please make sure that a data source is connected\n");
-	    usleep(1e5);
-	    continue;
-	}
+		if (inl == 0) {
+			//EOF
+			fprintf(stderr, "Warning: Lost connection to stdin. Please make sure that a data source is connected\n");
+			usleep(1e5);
+			continue;
+		}
 
-	pb->len += inl;
+		pb->len += inl;
 
-	//check if this packet is finished
-	if(pb->len >= param_min_packet_length) {
-	    payload_header_t *ph = (payload_header_t*)pb->data;
-	    // write the length into the packet. this is needed since with fec we cannot use the wifi packet lentgh anymore.
-	    // We could also set the user payload to a fixed size but this would introduce additional latency since tx would need to wait until that amount of data has been received
-	    ph->data_length = pb->len - sizeof(payload_header_t);
-	    pcnt++;
-	    //check if this block is finished
-	    if(fifo[0].curr_pb == param_data_packets_per_block-1) {
-		pb_transmit_block(fifo[0].pbl, &(fifo[0].seq_nr), param_port, param_packet_length, packet_transmit_buffer, packet_header_length, param_data_packets_per_block, param_fec_packets_per_block, num_interfaces, param_transmission_mode, &td);
-		fifo[0].curr_pb = 0;
-	    } else {
-		fifo[0].curr_pb++;
-	    }
-	}
+		//check if this packet is finished
+		if (pb->len >= param_min_packet_length) {
+			payload_header_t *ph = (payload_header_t*)pb->data;
+			// write the length into the packet. this is needed since with fec we cannot use the wifi packet lentgh anymore.
+			// We could also set the user payload to a fixed size but this would introduce additional latency since tx would need to wait until that amount of data has been received
+			ph->data_length = pb->len - sizeof(payload_header_t);
+			pcnt++;
+			//check if this block is finished
+			if(fifo[0].curr_pb == param_data_packets_per_block-1) {
+				pb_transmit_block(fifo[0].pbl, &(fifo[0].seq_nr), param_port, 
+									param_packet_length, packet_transmit_buffer, 
+									packet_header_length, param_data_packets_per_block, 
+									param_fec_packets_per_block, num_interfaces, 
+									param_transmission_mode, &td);
+				fifo[0].curr_pb = 0;
+			} else {
+				fifo[0].curr_pb++;
+			}
+		}
 
-	now = current_timestamp();
-	pcntnow = pcnt;
+		now = current_timestamp();
+		pcntnow = pcnt;
 
-	if (now - prev_time > 250) {
-	    prev_time = current_timestamp();
-	    bitrate[i_bitrate] = ((pcntnow - pcntprev) * param_packet_length * 8) * 4;
-	    pcntprev = pcnt;
-//	    fprintf(stderr,"\t\tbitrate[%d]: %d\n", i_bitrate, bitrate[i_bitrate]);
-	    measure_count++;
-	    i_bitrate++;
-	    if (measure_count == 9) { // measure for 2 seconds (1st measurement is instant, thus 9 * 250ms)
-//		bitrate_smallest = bitrate[2];
- //		for (i = 2; i < 9; i++) {
-//		    if (bitrate[i] < bitrate_smallest) {
-//			bitrate_smallest = bitrate[i];
-//		    }
-//		}
-		bitrate_avg = (bitrate[2] + bitrate[3] + bitrate[4] + bitrate[5] + bitrate[6] + bitrate[7] + bitrate[8]) / 7; // do not use 1st and 2nd measurement, these are flawed
-		// for some reason, the above measurement yield about 5% too high bitrate, reduce it by 5% here
-		bitrate_avg = bitrate_avg * 0.95;
-		fprintf(stdout,"%d\n", bitrate_avg);
-//		fprintf(stderr,"average: %d\n", bitrate_avg);
-//		fprintf(stderr,"smallest:%d \n", bitrate_smallest);
-		return 0;
-	    }
-	}
+		if (now - prev_time > 250) {
+			prev_time = current_timestamp();
+			bitrate[i_bitrate] = ((pcntnow - pcntprev) * param_packet_length * 8) * 4;
+			pcntprev = pcnt;
+	//	    fprintf(stderr,"\t\tbitrate[%d]: %d\n", i_bitrate, bitrate[i_bitrate]);
+			measure_count++;
+			i_bitrate++;
+			if (measure_count == 9) { // measure for 2 seconds (1st measurement is instant, thus 9 * 250ms)
+		//		bitrate_smallest = bitrate[2];
+		 //		for (i = 2; i < 9; i++) {
+		//		    if (bitrate[i] < bitrate_smallest) {
+		//			bitrate_smallest = bitrate[i];
+		//		    }
+		//		}
+				bitrate_avg = (bitrate[2] + bitrate[3] + bitrate[4] + bitrate[5] + bitrate[6] + bitrate[7] + bitrate[8]) / 7; // do not use 1st and 2nd measurement, these are flawed
+				// for some reason, the above measurement yield about 5% too high bitrate, reduce it by 5% here
+				bitrate_avg = bitrate_avg * 0.95;
+				fprintf(stdout,"%d\n", bitrate_avg);
+		//		fprintf(stderr,"average: %d\n", bitrate_avg);
+		//		fprintf(stderr,"smallest:%d \n", bitrate_smallest);
+				return 0;
+			}
+		}
     }
     printf("ERROR: Broken socket!\n");
+	iniparser_freedict(ini);
     return (0);
 }

@@ -20,6 +20,10 @@
 #include <time.h>
 #include <sys/resource.h>
 #include <limits.h>
+#include <iniparser.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <arpa/inet.h>
 
 #define MAX_PACKET_LENGTH 4192
 #define MAX_USER_PACKET_LENGTH 2278
@@ -47,7 +51,12 @@ int param_packet_length = 1024;
 
 wifibroadcast_rx_status_t *rx_status = NULL;
 int max_block_num = -1;
-
+struct sockaddr_in udp_send_addr;
+struct sockaddr_in udp_bind_addr;	
+int udp_sockfd, slen = sizeof(udp_send_addr);
+int save_fd;
+int param_recording_en;
+char *param_recording_path;
 
 long long current_timestamp() {
     struct timeval te; 
@@ -81,19 +90,21 @@ long long packetcounter_ts_now[6];
 
 void usage(void) {
 	printf(
-	    "rx (c)2015 befinitiv. Based on packetspammer by Andy Green. Dirty mods by Rodizio. GPL2 licensed.\n"
-	    "\n"
-	    "Usage: rx [options] <interfaces>\n\nOptions\n"
-	    "-p <port>   Port number 0-255 (default 0)\n"
-	    "-b <count>  Number of data packets in a block (default 8). Needs to match with tx.\n"
-	    "-r <count>  Number of FEC packets per block (default 4). Needs to match with tx.\n"
-	    "-f <bytes>  Bytes per packet (default %d. max %d). This is also the FEC block size. Needs to match with tx\n"
-	    "-d <blocks> Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
-	    "            adapter delivers data faster than the other. Note that this increases latency.\n"
-	    "\n"
-	    "Example:\n"
-	    "  rx -b 8 -r 4 -f 1024 -t 1 wlan0 | cat /dev/null (receive standard DATA frames on wlan0 and send payload to /dev/null)\n"
-	    "\n", 1024, MAX_USER_PACKET_LENGTH);
+		"rx (c)2015 befinitiv. Based on packetspammer by Andy Green. Dirty mods by Rodizio. GPL2 licensed\n"
+		"Dirty mod by libc0607@Github\n"
+		"\n"
+		"Usage: rx <config.ini>\n"
+		"\n"
+		"config.ini example:\n"
+		"\t[rx]\n"
+		"\tport=0             # Port number 0-255 (default 0)\n"
+		"\tdatanum=8          # Number of data packets in a block (default 8). Needs to match with rx\n"
+		"\tfecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
+		"\tpacketsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
+		"\bufsize=1           # Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
+		"\tnic=wlan0          # Wi-Fi interface\n"
+		, 1024, MAX_USER_PACKET_LENGTH
+	);
 	exit(1);
 }
 
@@ -351,8 +362,13 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
                     //if reconstruction did fail, the data_length value is undefined. better limit it to some sensible value
                     if (ph->data_length > param_packet_length) 
 						ph->data_length = param_packet_length;
-                    write(STDOUT_FILENO, data_blocks[i] + sizeof(payload_header_t), ph->data_length);
-					fflush(stdout);
+					sendto(udp_sockfd, data_blocks[i] + sizeof(payload_header_t), ph->data_length, 
+							0, (struct sockaddr*)&udp_send_addr, slen);
+					if (param_recording_en) {
+						write(save_fd, data_blocks[i] + sizeof(payload_header_t), ph->data_length);
+					}
+					//write(STDOUT_FILENO, data_blocks[i] + sizeof(payload_header_t), ph->data_length);
+					//fflush(stdout);
 					now = current_timestamp();
 					bytes_written = bytes_written + ph->data_length;
 					if (now - prev_time > 500) {
@@ -589,52 +605,26 @@ int main(int argc, char *argv[]) {
 	monitor_interface_t interfaces[MAX_PENUMBRA_INTERFACES];
 	int num_interfaces = 0;
 	int i;
-
+	struct stat status;
 	prev_time = current_timestamp();
 	now = current_timestamp();
 
 	block_buffer_t *block_buffer_list;
-
-	while (1) {
-		int nOptionIndex;
-		static const struct option optiona[] = {
-			{ "help", no_argument, &flagHelp, 1 },
-			{ 0, 0, 0, 0 }
-		};
-		int c = getopt_long(argc, argv, "h:p:b:r:d:f:", optiona, &nOptionIndex);
-
-		if (c == -1)
-			break;
-		switch (c) {
-		case 0: // long option
-			break;
-		case 'h': // help
-			usage();
-		case 'p': // port
-			param_port = atoi(optarg);
-			break;
-		case 'b': // data blocks
-			param_data_packets_per_block = atoi(optarg);
-			break;
-		case 'r': // fec blocks
-			param_fec_packets_per_block = atoi(optarg);
-			break;
-		case 'd': // block buffers
-			param_block_buffers = atoi(optarg);
-			break;
-		case 'f': // packet size
-			param_packet_length = atoi(optarg);
-			break;
-		default:
-			fprintf(stderr, "unknown switch %c\n", c);
-			usage();
-			break;
-		}
-	}
-
-	if (optind >= argc)
+	
+	if (argc != 2) {
 		usage();
-
+	}
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	param_fec_packets_per_block = iniparser_getint(ini, "rx:fecnum", 0);
+	param_data_packets_per_block = iniparser_getint(ini, "rx:datanum", 0); 
+	param_packet_length = iniparser_getint(ini, "rx:packetsize", 0);
+	param_port = iniparser_getint(ini, "rx:port", 0);
+	param_block_buffers = = iniparser_getint(ini, "rx:bufsize", 0);
+	param_data_rate = iniparser_getint(ini, "rx:rate", 0);
+	param_transmission_mode = iniparser_getint(ini, "rx:mode", 0);
+	param_recording_en = iniparser_getboolean(ini, "rx:recording", 0);
+	param_recording_path = iniparser_getstring(ini, "rx:recording_dir", NULL)
 	if (param_packet_length > MAX_USER_PACKET_LENGTH) {
 		printf("Packet length is limited to %d bytes (you requested %d bytes)\n", 
 								MAX_USER_PACKET_LENGTH, param_packet_length);
@@ -651,7 +641,60 @@ int main(int argc, char *argv[]) {
 	char path[45], line[100];
 	FILE* procfile;
 
-	while(x < argc && num_interfaces < MAX_PENUMBRA_INTERFACES) {
+	bzero(&udp_send_addr, slen);
+	udp_send_addr.sin_family = AF_INET;
+	udp_send_addr.sin_port = htons(iniparser_getint(ini, "rx:udp_port", 0));
+	udp_send_addr.sin_addr.s_addr = inet_addr(iniparser_getstring(ini, "rx:udp_ip", NULL));
+	if ((udp_sockfd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) 
+		printf("ERROR: Could not create UDP socket!");
+	
+	bzero(&udp_bind_addr, slen);	
+	udp_bind_addr.sin_family = AF_INET;
+	udp_bind_addr.sin_port = htons(atoi(iniparser_getstring(ini, "rx:udp_bind_port", NULL)));
+	udp_bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	// always bind on the same source port to avoid UDP "connection" fail
+	bind(udp_sockfd, (struct sockaddr*)&udp_bind_addr, sizeof(udp_bind_addr));
+	
+
+	
+	
+	if (param_recording_en) {	
+		char save_filename[128];	// should enough..?
+		bzero(&save_filename, sizeof(save_filename));
+		// use timestamp in filename
+		sprintf(save_filename, "%s/video-%d.h264", 
+				iniparser_getstring(ini, "rx:recording_dir", NULL), current_timestamp());
+		save_fd = fopen(save_filename, "wb");
+	}
+	
+	
+	// ini supports only support one interface now
+	// should be fixed later
+	open_and_configure_interface(iniparser_getstring(ini, "rx:nic", NULL), 
+									param_port, interfaces + num_interfaces);
+	snprintf(path, 45, "/sys/class/net/%s/device/uevent", iniparser_getstring(ini, "rx:nic", NULL));
+	procfile = fopen(path, "r");
+	if (!procfile) {
+		fprintf(stderr,"ERROR: opening %s failed!\n", path); 
+		return 0;
+	}
+	fgets(line, 100, procfile); // read the first line
+	fgets(line, 100, procfile); // read the 2nd line
+	if(strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
+		fprintf(stderr, "ath9k card\n");
+		rx_status->adapter[j].type = (int8_t)(0);
+	} else {
+		fprintf(stderr, "Ralink (or other) card\n");
+		rx_status->adapter[j].type = (int8_t)(1);
+	}
+	fclose(procfile);
+	++num_interfaces;
+	usleep(10000);
+	rx_status->wifi_adapter_cnt = num_interfaces;
+	
+	
+
+/* 	while(x < argc && num_interfaces < MAX_PENUMBRA_INTERFACES) {
 		open_and_configure_interface(argv[x], param_port, interfaces + num_interfaces);
 
 		snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
@@ -662,11 +705,11 @@ int main(int argc, char *argv[]) {
 		}
 		fgets(line, 100, procfile); // read the first line
 		fgets(line, 100, procfile); // read the 2nd line
-		if(strncmp(line, "DRIVER=ath9k_htc", 16) == 0) { // it's an atheros card
-//		    fprintf(stderr, "Atheros\n");
+		if(strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
+		    fprintf(stderr, "ath9k card\n");
 		    rx_status->adapter[j].type = (int8_t)(0);
 		} else {
-//		    fprintf(stderr, "Ralink\n");
+		    fprintf(stderr, "Ralink (or other) card\n");
 		    rx_status->adapter[j].type = (int8_t)(1);
 		}
 		fclose(procfile);
@@ -675,9 +718,9 @@ int main(int argc, char *argv[]) {
 		++x;
 		++j;
 		usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
-	}
+	} */
 
-	rx_status->wifi_adapter_cnt = num_interfaces;
+	
 
 	//block buffers contain both the block_num as well as packet buffers for a block.
 	block_buffer_list = malloc(sizeof(block_buffer_t) * param_block_buffers);
@@ -687,7 +730,7 @@ int main(int argc, char *argv[]) {
 										param_data_packets_per_block+param_fec_packets_per_block, 
 										MAX_PACKET_LENGTH);
 	}
-
+	int fd_sum = 0;
 	for(;;) {
 		packetcounter_ts_now[i] = current_timestamp();
 		if (packetcounter_ts_now[i] - packetcounter_ts_prev[i] > 220) {
@@ -711,9 +754,13 @@ int main(int argc, char *argv[]) {
 		to.tv_usec = 1e5; // 100ms
 
 		FD_ZERO(&readset);
-		for (i=0; i<num_interfaces; ++i) 
+		fd_sum = 0;
+		for (i=0; i<num_interfaces; ++i) {
 			FD_SET(interfaces[i].selectable_fd, &readset);
-		int n = select(30, &readset, NULL, NULL, &to);
+			fd_sum += interfaces[i].selectable_fd;
+		}
+		int n = select(fd_sum+1, &readset, NULL, NULL, &to);
+		//int n = select(30, &readset, NULL, NULL, &to);	// what is 30???
 		if (n == 0) 
 			continue;
 		for (i=0; i<num_interfaces; ++i) {
@@ -722,6 +769,8 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-
+	iniparser_freedict(ini);
+	fclose(save_fd);
+	close(udp_sockfd);
 	return (0);
 }

@@ -139,9 +139,10 @@ int main(int argc, char *argv[])
 	
     fprintf(stderr,"OSD started\n=====================================\n\n");
 	fprintf(stderr, "Using config file: %s\n", file);
-	load_ini(ini);
+	
 	
 	dictionary *ini = iniparser_load(file);
+	load_ini(ini);
 	telemetry_type_char = iniparser_getstring(ini, "osd:type", NULL);
 	if (strcmp(telemetry_type_char, "ltm") && strcmp(telemetry_type_char, "LTM")) {
 		telemetry_type = LTM;
