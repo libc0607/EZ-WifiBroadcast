@@ -1,7 +1,4 @@
 #pragma once
-#include "osdconfig.h"
-
-#ifdef FRSKY
 
 #include "telemetry.h"
 
@@ -52,4 +49,4 @@ typedef struct {
 
 int frsky_interpret_packet(frsky_state_t *state, telemetry_data_t *td);
 int frsky_parse_buffer(frsky_state_t *state, telemetry_data_t *td, uint8_t *buf, int buflen);
-#endif
+

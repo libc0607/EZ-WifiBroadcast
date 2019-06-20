@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 #include <time.h>
-#include "osdconfig.h"
 
 typedef struct {
         uint32_t received_packet_cnt;
@@ -118,25 +117,18 @@ typedef struct {
 
 	uint8_t home_fix;
 
-//#if defined(FRSKY)
 	int16_t x, y, z; // also needed for smartport
 	int16_t ew, ns;
-//#endif
 
-#if defined(SMARTPORT)
 	uint8_t swr;
 	float rx_batt;
 	float adc1;
 	float adc2;
 	float vario;
-#endif
 
-#if defined(MAVLINK)
 	uint32_t mav_flightmode;
 	float mav_climb;
-#endif
 
-#if defined(LTM)
 // ltm S frame
 	uint8_t ltm_status;
 	uint8_t ltm_failsafe;
@@ -158,8 +150,6 @@ typedef struct {
 	double ltm_home_latitude;
 	uint8_t ltm_osdon;
 	uint8_t ltm_homefix;
-#endif
-
 
 	wifibroadcast_rx_status_t *rx_status;
 	wifibroadcast_rx_status_t_osd *rx_status_osd;

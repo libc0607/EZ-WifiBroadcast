@@ -1,6 +1,5 @@
 #include "frsky.h"
 
-#ifdef FRSKY
 
 #include <stdint.h>
 
@@ -151,4 +150,3 @@ int frsky_interpret_packet(frsky_state_t *state, telemetry_data_t *td) {
 	printf("\n");
 	return new_data;
 }
-#endif

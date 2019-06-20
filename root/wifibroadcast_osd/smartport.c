@@ -1,7 +1,6 @@
 #include "smartport.h"
 #include <stdio.h>
 
-#ifdef SMARTPORT
 void smartport_read(telemetry_data_t *td, uint8_t *buf, int buflen) {
     static uint8_t s = 0;
     static uint8_t e = 0;
@@ -203,4 +202,3 @@ void smartport_check(telemetry_data_t *td, uint8_t *b) {
             break;
         }
 }
-#endif

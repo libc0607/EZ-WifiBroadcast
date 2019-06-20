@@ -17,7 +17,6 @@
 #include "ltm.h"
 #include <stdio.h>
 
-#ifdef LTM
   static uint8_t LTMserialBuffer[LIGHTTELEMETRY_GFRAMELENGTH-4];
   static uint8_t LTMreceiverIndex;
   static uint8_t LTMcmd;
@@ -211,4 +210,4 @@ int ltm_check(telemetry_data_t *td) {
   printf("\n");
   return render_data;
 }
-#endif
+

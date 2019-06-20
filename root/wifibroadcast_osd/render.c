@@ -20,7 +20,6 @@
 #include <stdint.h>
 #include "render.h"
 #include "telemetry.h"
-#include "osdconfig.h"
 #include <iniparser.h>
 
 #define TO_FEET 3.28084
@@ -71,6 +70,8 @@ int i_gpsalt_pos_x, i_gpsalt_pos_y, i_course_over_ground_en, i_gpsalt_en, i_airs
 int i_imperial_en, i_copter_en;
 int i_color_r, i_color_g, i_color_b, i_outlinecolor_r, i_outlinecolor_g, i_outlinecolor_b;
 float i_color_o, i_outlinecolor_o, i_outlinewidth;
+
+telemetry_type_t i_telemetry_type;
 
 void load_ini(dictionary *ini) 
 {
@@ -244,6 +245,22 @@ void load_ini(dictionary *ini)
 	i_warning_pos_x = iniparser_getint(ini, "osd:warning_pos_x", 0);
 	i_warning_pos_y = iniparser_getint(ini, "osd:warning_pos_y", 0);
 	
+	char *telemetry_type_char;
+	telemetry_type_char = iniparser_getstring(ini, "osd:type", NULL);
+	if (strcmp(telemetry_type_char, "ltm") && strcmp(telemetry_type_char, "LTM")) {
+		i_telemetry_type = LTM;
+	} else if (strcmp(telemetry_type_char, "MAVLINK") && strcmp(telemetry_type_char, "mavlink")) {
+		i_telemetry_type = MAVLINK;
+	} else if (strcmp(telemetry_type_char, "FRSKY") && strcmp(telemetry_type_char, "frsky")) {
+		i_telemetry_type = FRSKY;
+	} else if (strcmp(telemetry_type_char, "SMARTPORT") && strcmp(telemetry_type_char, "smartport")) {
+		i_telemetry_type = SMARTPORT;
+	} else {
+		fprintf(stderr, "Unknown telemetry type: %s", telemetry_type_char);
+		iniparser_freedict(ini);
+		exit(EXIT_FAILURE);
+	}
+	
 	return;
 }
 
@@ -294,7 +311,7 @@ void render_init(char *font_char) {
 //  vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 }
 
-void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_type, 
+void render(telemetry_data_t *td, dictionary *ini, 
 			uint8_t cpuload_gnd, uint8_t temp_gnd, uint8_t undervolt, int osdfps) 
 {
 	Start(width, height); // render start
@@ -302,14 +319,14 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 
     if (td->rx_status_sysair->undervolt == 1)  {
 		draw_message(0, "Undervoltage on TX","Check wiring/power-supply","Bitrate limited to 1 Mbit", 
-						warning_pos_x, warning_pos_y, global_scale);
+						i_warning_pos_x, i_warning_pos_y, i_global_scale);
 	}
     if (undervolt == 1) {
 		draw_message(0, "Undervoltage on RX","Check wiring/power-supply"," ", 
-						warning_pos_x, warning_pos_y, global_scale);
+						i_warning_pos_x, i_warning_pos_y, i_global_scale);
 	}
 	
-	if (telemetry_type == FRSKY) {
+	if (i_telemetry_type == FRSKY) {
 		//we assume that we have a fix if we get the NS and EW values from frsky protocol
 		if (((td->ew == 'E' || td->ew == 'W') && (td->ns == 'N' || td->ns == 'S')) && !home_set){
 			setting_home = true;
@@ -325,7 +342,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 				home_lon = (td->ew == 'E'? 1:-1) * td->longitude;
 			}
 		}
-	} else if (telemetry_type == MAVLINK || telemetry_type == SMARTPORT) {
+	} else if (i_telemetry_type == MAVLINK || i_telemetry_type == SMARTPORT) {
 		// if atleast 2D satfix is reported by flightcontrol
 		if (td->fix > 2 && !home_set){
 			setting_home = true;
@@ -341,7 +358,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 				home_lon = td->longitude;
 			}
 		}
-	} else if (telemetry_type == LTM) {
+	} else if (i_telemetry_type == LTM) {
 		//LTM makes it easy: If LTM O-frame reports home fix,
 		//set home position and use home lat/long from LTM O-frame
 		if (td->home_fix == 1){
@@ -370,7 +387,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 					i_sys_pos_x, i_sys_pos_y, i_sys_scale * i_global_scale);
 	}
 
-	if (i_flightmode_en && telemetry_type == MAVLINK) {
+	if (i_flightmode_en && i_telemetry_type == MAVLINK) {
 		draw_mode(td->mav_flightmode, td->armed, 
 					i_flightmode_pos_x, i_flightmode_pos_y, i_flightmode_scale * i_global_scale);
     }
@@ -379,7 +396,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 		draw_rssi(td->rssi, i_rssi_pos_x, i_rssi_pos_y, i_rssi_scale * i_global_scale);
 	}
 
-	if (i_climb_en && telemetry_type == MAVLINK) {
+	if (i_climb_en && i_telemetry_type == MAVLINK) {
 		draw_climb(td->mav_climb, i_climb_pos_x, i_climb_pos_y, i_climb_scale * i_global_scale);
 	}
 
@@ -438,16 +455,24 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 	}
 
 	if (i_home_arrow_en) {
-		if (telemetry_type == FRSKY) {
-			draw_home_arrow((int)course_to((td->ns == 'N'? 1:-1) *td->latitude, (td->ns == 'E'? 1:-1) *td->longitude, home_lat, home_lon), 
-							i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_scale * i_global_scale);
+		if (i_telemetry_type == FRSKY) {
+/* 			draw_home_arrow((int)course_to((td->ns == 'N'? 1:-1) *td->latitude, (td->ns == 'E'? 1:-1) *td->longitude, home_lat, home_lon), 
+							i_home_arrow_pos_x, 
+							i_home_arrow_pos_y, 
+							i_home_arrow_scale * i_global_scale); */	//what?
 		} else {
 			if (i_home_arrow_usecog_en) {
-				draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), td->cog, 
-								i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_scale * i_global_scale);
+				draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), 
+								td->cog, 
+								i_home_arrow_pos_x, 
+								i_home_arrow_pos_y, 
+								i_home_arrow_scale * i_global_scale);
 			} else {
-				draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), td->heading, 
-								i_home_arrow_pos_x, i_home_arrow_pos_y, i_home_arrow_scale * i_global_scale);
+				draw_home_arrow(course_to(home_lat, home_lon, td->latitude, td->longitude), 
+								td->heading, 
+								i_home_arrow_pos_x, 
+								i_home_arrow_pos_y, 
+								i_home_arrow_scale * i_global_scale);
 			}
 			if(td->heading>=360) td->heading=td->heading-360; // ?	//???
 		}
@@ -469,7 +494,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 	}
 
 	if (i_position_en) {
-		if (telemetry_type == FRSKY) {
+		if (i_telemetry_type == FRSKY) {
 			draw_position((td->ns == 'N'? 1:-1) * td->latitude, (td->ew == 'E'? 1:-1) * td->longitude, 
 							i_position_pos_x, i_position_pos_y, i_position_scale * i_global_scale);
 		} else {
@@ -479,7 +504,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 	}
 
 	if (i_distance_en) {
-		if (telemetry_type == FRSKY) {
+		if (i_telemetry_type == FRSKY) {
 			draw_home_distance( (int)distance_between(home_lat, home_lon, (td->ns == 'N'? 1:-1) 
 														*td->latitude, (td->ns == 'E'? 1:-1) *td->longitude), 
 								home_set, i_distance_pos_x, i_distance_pos_y, i_distance_scale * i_global_scale);
@@ -526,7 +551,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 	}
 
 	if (i_sat_en) {
-		if (telemetry_type == FRSKY) {
+		if (i_telemetry_type == FRSKY) {
 			//we assume that we have a fix if we get the NS and EW values from frsky protocol
 			if ((td->ew == 'E' || td->ew == 'W') && (td->ns == 'N' || td->ns == 'S')){
 				draw_sat(0, 2, i_sat_pos_x, i_sat_pos_y, i_sat_scale * i_global_scale);
@@ -544,7 +569,7 @@ void render(telemetry_data_t *td, dictionary *ini, telemetry_type_t telemetry_ty
 	}
 
 	if (i_ahi_en) {
-		if (telemetry_type == FRSKY || telemetry_type == SMARTPORT) {
+		if (i_telemetry_type == FRSKY || i_telemetry_type == SMARTPORT) {
 			float x_val, y_val, z_val;
 			x_val = td->x;
 			y_val = td->y;
@@ -700,12 +725,12 @@ void draw_climb(float climb, float pos_x, float pos_y, float scale){
 
 void draw_baroalt(float baroalt, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
-
+	VGfloat width_value;
 	if (i_imperial_en) {
-		VGfloat width_value = TextWidth("0000", myfont, text_scale);
+		width_value = TextWidth("0000", myfont, text_scale);
 		sprintf(buffer, "%.0f", baroalt*TO_FEET);
 	} else {
-		VGfloat width_value = TextWidth("000.0", myfont, text_scale);
+		width_value = TextWidth("000.0", myfont, text_scale);
 		sprintf(buffer, "%.1f", baroalt);			
 	}
 
@@ -721,12 +746,12 @@ void draw_baroalt(float baroalt, float pos_x, float pos_y, float scale){
 
 void draw_gpsalt(float gpsalt, float pos_x, float pos_y, float scale){
     float text_scale = getWidth(2) * scale;
-
+	VGfloat width_value;
 	if (i_imperial_en) {
-		VGfloat width_value = TextWidth("0000", myfont, text_scale);
+		width_value = TextWidth("0000", myfont, text_scale);
 		sprintf(buffer, "%.0f", gpsalt*TO_FEET);
 	} else {
-		VGfloat width_value = TextWidth("000.0", myfont, text_scale);
+		width_value = TextWidth("000.0", myfont, text_scale);
 		sprintf(buffer, "%.1f", gpsalt);
 	}
 
@@ -1358,7 +1383,7 @@ void draw_sat(int sats, int fixtype, float pos_x, float pos_y, float scale){
 		TextEnd(getWidth(pos_x), getHeight(pos_y), "", osdicons, text_scale*0.7);
     }
 
-	if (telemetry_type == LTM || telemetry_type == MAVLINK) {
+	if (i_telemetry_type == LTM || i_telemetry_type == MAVLINK) {
 		Fill(i_color_r, i_color_g, i_color_b, i_color_o);
 		Stroke(i_outlinecolor_r, i_outlinecolor_g, i_outlinecolor_b, i_outlinecolor_o);
 		sprintf(buffer, "%d", sats);

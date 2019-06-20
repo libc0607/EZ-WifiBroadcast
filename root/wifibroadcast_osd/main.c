@@ -49,7 +49,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iniparser.h>
 
 #include "render.h"
-#include "osdconfig.h"
 #include "telemetry.h"
 
 #include "ltm.h"		//0
@@ -59,6 +58,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 //#define DEBUG
 //#define DUMP_PACKET
+
+extern telemetry_type_t i_telemetry_type;
 
 long long current_timestamp() {
     struct timeval te;
@@ -130,9 +131,7 @@ int main(int argc, char *argv[])
 	char *udp_listen_port_char;
 	char *file = argv[1];
 	frsky_state_t fs;
-	char *telemetry_type_char;
-	telemetry_type_t telemetry_type;
-		
+	
 	setpriority(PRIO_PROCESS, 0, 10);
 	setlocale(LC_ALL, "en_GB.UTF-8");
 	signal(SIGPIPE, SIG_IGN);
@@ -143,20 +142,6 @@ int main(int argc, char *argv[])
 	
 	dictionary *ini = iniparser_load(file);
 	load_ini(ini);
-	telemetry_type_char = iniparser_getstring(ini, "osd:type", NULL);
-	if (strcmp(telemetry_type_char, "ltm") && strcmp(telemetry_type_char, "LTM")) {
-		telemetry_type = LTM;
-	} else if (strcmp(telemetry_type_char, "MAVLINK") && strcmp(telemetry_type_char, "mavlink")) {
-		telemetry_type = MAVLINK;
-	} else if (strcmp(telemetry_type_char, "FRSKY") && strcmp(telemetry_type_char, "frsky")) {
-		telemetry_type = FRSKY;
-	} else if (strcmp(telemetry_type_char, "SMARTPORT") && strcmp(telemetry_type_char, "smartport")) {
-		telemetry_type = SMARTPORT;
-	} else {
-		fprintf(stderr, "Unknown telemetry type: %s", telemetry_type_char);
-		iniparser_freedict(ini);
-		exit(EXIT_FAILURE);
-	}
 	
     fprintf(stderr,"OSD: Initializing sharedmem ...\n");
     telemetry_init(&td);
@@ -216,7 +201,7 @@ int main(int argc, char *argv[])
 				exit(-1);
 			}
 			
-			switch (telemetry_type) {
+			switch (i_telemetry_type) {
 			case 0:
 				do_render = ltm_read(&td, buf, n);
 				break;
@@ -243,7 +228,7 @@ int main(int argc, char *argv[])
 #endif
 			prev_time = current_timestamp();
 			fpscount++;
-			render(&td, &ini, telemetry_type, cpuload_gnd, temp_gnd/1000, undervolt_gnd, fps);
+			render(&td, ini, cpuload_gnd, temp_gnd/1000, undervolt_gnd, fps);
 			long long took = current_timestamp() - prev_time;
 #ifdef DEBUG
 //			fprintf(stderr,"Render took %lldms\n", took);
