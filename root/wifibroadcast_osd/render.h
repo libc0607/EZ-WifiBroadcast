@@ -30,7 +30,7 @@
 
 void render_init(char *font_char);
 void setfillstroke();
-void render(telemetry_data_t *td, dictionary *ini, uint8_t cpuload_gnd, uint8_t temp_gnd, uint8_t undervolt, int fps);
+void render(telemetry_data_t *td, uint8_t cpuload_gnd, uint8_t temp_gnd, uint8_t undervolt, int fps);
 
 void rotatePoints(float *x, float *y, float angle, int points, int center_x, int center_y); //rotate a polyline/polygon
 float distance_between(float lat1, float long1, float lat2, float long2);

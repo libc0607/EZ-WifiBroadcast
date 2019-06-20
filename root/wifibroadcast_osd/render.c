@@ -311,7 +311,7 @@ void render_init(char *font_char) {
 //  vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 }
 
-void render(telemetry_data_t *td, dictionary *ini, 
+void render(telemetry_data_t *td,  
 			uint8_t cpuload_gnd, uint8_t temp_gnd, uint8_t undervolt, int osdfps) 
 {
 	Start(width, height); // render start

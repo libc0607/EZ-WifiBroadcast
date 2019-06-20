@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 	long long fpscount_ts_last = 0;
 	int fpscount = 0;
 	int fpscount_last = 0;
-	int fps;
+	int fps = 0;
 	int do_render = 0;
 	int counter = 0;
 	struct stat fdstatus;
@@ -175,9 +175,9 @@ int main(int argc, char *argv[])
 	// main loop
     while(1) {
 #ifdef DEBUG
-//		fprintf(stderr," start while ");
-		prev_time = current_timestamp();
+		fprintf(stderr," start while ");		
 #endif
+		prev_time = current_timestamp();
 	    FD_ZERO(&set);
 	    FD_SET(sockfd, &set);
 	    timeout.tv_sec = 0;
@@ -218,20 +218,20 @@ int main(int argc, char *argv[])
 	    }
 	    counter++;
 #ifdef DEBUG
-//	    fprintf(stderr,"OSD: counter: %d\n",counter);
+	    fprintf(stderr,"OSD: counter: %d\n",counter);
 #endif
 	    // render only if we have data that needs to be processed as quick as possible (attitude)
 	    // or if three iterations (~150ms) passed without rendering
 	    if ((do_render == 1) || (counter == 3)) {
 #ifdef DEBUG			
-//			fprintf(stderr," rendering! ");
+			fprintf(stderr," rendering! ");
 #endif
 			prev_time = current_timestamp();
 			fpscount++;
-			render(&td, ini, cpuload_gnd, temp_gnd/1000, undervolt_gnd, fps);
+			render(&td, cpuload_gnd, temp_gnd/1000, undervolt_gnd, fps);
 			long long took = current_timestamp() - prev_time;
 #ifdef DEBUG
-//			fprintf(stderr,"Render took %lldms\n", took);
+			fprintf(stderr,"Render took %lldms\n", took);
 #endif
 			do_render = 0;
 			counter = 0;
@@ -240,27 +240,30 @@ int main(int argc, char *argv[])
 	    delta = current_timestamp() - prev_cpu_time;
 	    if (delta > 1000) {
 			prev_cpu_time = current_timestamp();
+#ifdef DEBUG
 	//		fprintf(stderr,"delta > 10000\n");
-
+#endif
 			fp2 = fopen("/sys/class/thermal/thermal_zone0/temp","r");
 			fscanf(fp2,"%d",&temp_gnd);
 			fclose(fp2);
+#ifdef DEBUG
 	//		fprintf(stderr,"temp gnd:%d\n",temp_gnd/1000);
-
+#endif
 			fp = fopen("/proc/stat","r");
 			fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);
 			fclose(fp);
 
 			cpuload_gnd = (((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3]))) * 100;
+#ifdef DEBUG
 	//		fprintf(stderr,"cpuload gnd:%d\n",cpuload_gnd);
-
+#endif
 			fp = fopen("/proc/stat","r");
 			fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&b[0],&b[1],&b[2],&b[3]);
 			fclose(fp);
 	    }
-#ifdef DEBUG
 		long long took = current_timestamp() - prev_time;
-//		fprintf(stderr,"while took %lldms\n", took);
+#ifdef DEBUG
+		fprintf(stderr,"while took %lldms\n", took);
 #endif
 		long long fpscount_timer = current_timestamp() - fpscount_ts_last;
 		if (fpscount_timer > 2000) {
