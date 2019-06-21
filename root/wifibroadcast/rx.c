@@ -607,7 +607,7 @@ int main(int argc, char *argv[]) {
 	monitor_interface_t interfaces[MAX_PENUMBRA_INTERFACES];
 	int num_interfaces = 0;
 	int i;
-	struct stat status;
+	//struct stat status;
 	prev_time = current_timestamp();
 	now = current_timestamp();
 
