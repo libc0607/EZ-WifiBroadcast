@@ -521,6 +521,11 @@ int main(int argc, char *argv[]) {
 	param_packet_type = iniparser_getint(ini, "tx:frametype", 0);
 	param_data_rate = iniparser_getint(ini, "tx:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx:mode", 0);
+	fprintf(stderr, "Config: packet %d/%d/%d, port %d, type %d, rate %d, mode %d, nic %s, UDP :%d, buf %d\n",
+		param_data_packets_per_block, param_fec_packets_per_block, param_packet_length,
+		param_port, param_packet_type, param_data_rate, param_transmission_mode,
+		iniparser_getstring(ini, "tx:nic", NULL), iniparser_getint(ini, "tx:udp_port", 0),
+		iniparser_getint(ini, "tx:udp_bufsize", 0));
 
 	udp_addr.sin_family = AF_INET;
 	udp_addr.sin_port = htons(iniparser_getint(ini, "tx:udp_port", 0));
@@ -587,9 +592,7 @@ int main(int argc, char *argv[]) {
 	socks[num_interfaces] = open_sock(iniparser_getstring(ini, "tx:nic", NULL));
 	num_interfaces = 1;
 	usleep(20000);
-	
-	iniparser_freedict(ini);
-	
+
     while (!fBrokenSocket) {
 
 		packet_buffer_t *pb = input.pbl + input.curr_pb;
@@ -638,6 +641,7 @@ int main(int argc, char *argv[]) {
 		}
     }
 	close(udp_sockfd);
+	iniparser_freedict(ini);
     printf("ERROR: Broken socket!\n");
     return (0);
 }

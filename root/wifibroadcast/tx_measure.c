@@ -464,6 +464,11 @@ int main(int argc, char *argv[]) {
 	param_data_rate = iniparser_getint(ini, "tx:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx:mode", 0);
 
+	fprintf(stderr, "Config: packet %d/%d/%d, port %d, type %d, rate %d, mode %d, nic %s\n",
+			param_data_packets_per_block, param_fec_packets_per_block, param_packet_length,
+			param_port, param_packet_type, param_data_rate, param_transmission_mode,
+			iniparser_getstring(ini, "tx:nic", NULL));
+
     if (param_packet_length > MAX_USER_PACKET_LENGTH) {
 		fprintf(stderr, "ERROR; Packet length is limited to %d bytes (you requested %d bytes)\n", MAX_USER_PACKET_LENGTH, param_packet_length);
 		return (1);

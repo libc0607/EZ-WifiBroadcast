@@ -57,8 +57,8 @@ int udp_sockfd, slen = sizeof(udp_send_addr);
 int save_fd;
 int param_recording_en;
 char *param_recording_path;
-int param_data_rate;
-int param_transmission_mode;
+//int param_data_rate;
+//int param_transmission_mode;
 
 long long current_timestamp() {
     struct timeval te; 
@@ -103,7 +103,7 @@ void usage(void) {
 		"\tdatanum=8          # Number of data packets in a block (default 8). Needs to match with rx\n"
 		"\tfecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
 		"\tpacketsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
-		"\bufsize=1           # Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
+		"\tbufsize=1           # Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
 		"\tnic=wlan0          # Wi-Fi interface\n"
 		, 1024, MAX_USER_PACKET_LENGTH
 	);
@@ -623,8 +623,8 @@ int main(int argc, char *argv[]) {
 	param_packet_length = iniparser_getint(ini, "rx:packetsize", 0);
 	param_port = iniparser_getint(ini, "rx:port", 0);
 	param_block_buffers = iniparser_getint(ini, "rx:bufsize", 0);
-	param_data_rate = iniparser_getint(ini, "rx:rate", 0);
-	param_transmission_mode = iniparser_getint(ini, "rx:mode", 0);
+//	param_data_rate = iniparser_getint(ini, "rx:rate", 0);
+//	param_transmission_mode = iniparser_getint(ini, "rx:mode", 0);
 	param_recording_en = iniparser_getboolean(ini, "rx:recording", 0);
 	param_recording_path = iniparser_getstring(ini, "rx:recording_dir", NULL);
 	if (param_packet_length > MAX_USER_PACKET_LENGTH) {
@@ -632,6 +632,8 @@ int main(int argc, char *argv[]) {
 								MAX_USER_PACKET_LENGTH, param_packet_length);
 		return (1);
 	}
+
+	fprintf("Config: packet %d/%d/%d, port %d, buf %d, rate");
 
 	fec_init();
 
