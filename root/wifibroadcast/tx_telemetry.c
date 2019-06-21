@@ -32,7 +32,7 @@
 #include <getopt.h>
 //#include <arpa/inet.h>
 #include "mavlink/common/mavlink.h"
-
+#include <iniparser.h>
 int sock = 0;
 int socks[5];
 int type[5];
@@ -140,19 +140,21 @@ static u8 dummydata[] = {
 int flagHelp = 0;
 
 void usage(void) {
-    printf(
-	"\nUsage: tx_telemetry [options] <interfaces>\n\n"
-	"Options:\n"
-	"-c <cts>    0 = CTS protection disabled. 1 = CTS protection enabled (Atheros only)\n"
-	"-p <port>   Port. Default = 1\n"
-	"-r <count>  Retransmission count. 1 = send each frame once, 2 = twice, 3 = three times ... Default = 1\n"
-	"-x <type>   Telemetry protocol to be used. 0 = Mavlink. 1 = generic (for all others).\n"
-	"-d <rate>   Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
-	"-y <mode>   Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
-	"-z <debug>  Debug. 0 = disable debug output, 1 = enable debug output\n\n"
-        "Example:\n"
-        "  cat /dev/serial0 | tx_telemetry -c 0 -p 1 -r 1 -x 0 -d 24 -y 0 wlan0\n"
-        "\n");
+	printf(
+	"tx_telemetry Dirty mod by libc0607@Github\n"
+	"\n"
+	"Usage: tx_telemetry <config.ini>\n"
+	"\n"
+	"config.ini example:\n"
+	"\t[tx_telemetry]\n"
+	"\tport=1             	# Port number 0-127 (default 1)\n"
+	"\tcts_protection=false	# CTS protection disabled / CTS protection enabled (Atheros only)\n"
+	"\retrans_count=2       # Retransmission count. 1 = send each frame once, 2 = twice, 3 = three times ... Default = 1\n"
+	"\ttele_protocol=1   	# Telemetry protocol to be used. 0 = Mavlink. 1 = generic (for all others)\n"
+	"\trate=6             	# Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
+	"\tmode=0             	# Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
+	"\tnic=wlan0          	# Wi-Fi interface\n"
+	);
     exit(1);
 }
 
@@ -287,76 +289,51 @@ int main(int argc, char *argv[]) {
 
     fprintf(stdout,"tx_telemetry (c)2017 by Rodizio. Based on wifibroadcast tx by Befinitiv. GPL2 licensed.\n");
 
-    while (1) {
-	int nOptionIndex;
-	static const struct option optiona[] = {
-	    { "help", no_argument, &flagHelp, 1 },
-	    { 0, 0, 0, 0 }
-	};
-
-	int c = getopt_long(argc, argv, "h:c:p:r:x:d:y:z:", optiona, &nOptionIndex);
-	if (c == -1) break;
-	switch (c) {
-	    case 0: // long option
-		break;
-	    case 'h': // help
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	if (argc !=2) {
 		usage();
-		break;
-	    case 'c': // CTS protection
-		param_cts = atoi(optarg);
-		break;
-	    case 'p': // port
-		param_port = atoi(optarg);
-		break;
-	    case 'r': // retransmissions
-		param_retransmissions = atoi(optarg);
-		break;
-	    case 'x': // telemetry protocol
-		param_telemetry_protocol = atoi(optarg);
-		break;
-	    case 'd': // data rate
-		param_data_rate = atoi(optarg);
-		break;
-	    case 'y': // transmission mode
-		param_transmission_mode = atoi(optarg);
-		break;
-	    case 'z': // debug
-		param_debug = atoi(optarg);
-		break;
-	    default:
-		fprintf(stderr, "unknown switch %c\n", c);
-		usage();
-		break;
 	}
-    }
+	param_cts = iniparser_getboolean(ini, "tx_telemetry:cts_protection", 0);
+	param_port = iniparser_getint(ini, "tx_telemetry:port", 0);
+	param_retransmissions = iniparser_getint(ini, "tx_telemetry:retrans_count", 0);
+	param_telemetry_protocol = iniparser_getint(ini, "tx_telemetry:tele_protocol", 0);
+	param_data_rate = iniparser_getint(ini, "tx_telemetry:rate", 0);
+	param_transmission_mode = iniparser_getint(ini, "tx_telemetry:mode", 0);
 
-    if (optind >= argc) usage();
-
+	fprintf(stderr, "Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, nic %s\n",
+			param_cts, param_port, param_retransmissions, param_telemetry_protocol,
+			param_data_rate, param_transmission_mode, iniparser_getstring(ini, "tx_telemetry:nic", NULL)
+	);
     int x = optind;
     int num_interfaces = 0;
 
-    while(x < argc && num_interfaces < 5) {
-    	snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
-        procfile = fopen(path, "r");
-        if (!procfile) {
-			fprintf(stderr,"ERROR: opening %s failed!\n", path); 
-			return 0;
-		}
-        fgets(line, 100, procfile); // read the first line
-        fgets(line, 100, procfile); // read the 2nd line
-        if (strncmp(line, "DRIVER=ath9k_htc", 16) == 0) { // it's an atheros card
-            fprintf(stderr, "tx_telemetry: Atheros card detected\n");
-			type[num_interfaces] = 0;
-        } else { // ralink
-            fprintf(stderr, "tx_telemetry: Ralink card detected\n");
-			type[num_interfaces] = 1;
-        }
-		socks[num_interfaces] = open_sock(argv[x]);
-		++num_interfaces;
-		++x;
-        fclose(procfile);
-        usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
-    }
+//    while(x < argc && num_interfaces < 5) {
+	
+	// ini supports only support one interface now
+	// should be fixed later
+	snprintf(path, 45, "/sys/class/net/%s/device/uevent", 
+					iniparser_getstring(ini, "tx_telemetry:nic", NULL));
+	procfile = fopen(path, "r");
+	if (!procfile) {
+		fprintf(stderr,"ERROR: opening %s failed!\n", path); 
+		return 0;
+	}
+	fgets(line, 100, procfile); // read the first line
+	fgets(line, 100, procfile); // read the 2nd line
+	if (strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
+		fprintf(stderr, "tx_telemetry: Atheros card detected\n");
+		type[num_interfaces] = 0;
+	} else { // ralink
+		fprintf(stderr, "tx_telemetry: Ralink (or other) card detected\n");
+		type[num_interfaces] = 1;
+	}
+	socks[num_interfaces] = open_sock(iniparser_getstring(ini, "tx_telemetry:nic", NULL));
+	++num_interfaces;
+	++x;
+	fclose(procfile);
+	usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
+//    }
 
     // initialize telemetry shared mem for rssi based transmission (-y 1)
     telemetry_data_t td;
@@ -430,180 +407,191 @@ int main(int argc, char *argv[]) {
     long long prev_time_read = current_timestamp();
 
     while (!fBrokenSocket) {
-	int inl = read(STDIN_FILENO, buf, 350); // read the data
-	if (param_debug == 1) {
-	    long long took_read = current_timestamp() - prev_time_read;
-	    prev_time_read = current_timestamp();
-	    fprintf(stderr, "read delta:%lldms bytes:%d ",took_read,inl);
-	}
+		int inl = read(STDIN_FILENO, buf, 350); // read the data
+		if (param_debug == 1) {
+			long long took_read = current_timestamp() - prev_time_read;
+			prev_time_read = current_timestamp();
+			fprintf(stderr, "read delta:%lldms bytes:%d ",took_read,inl);
+		}
 
-	if(inl < 0) { fprintf(stderr,"tx_telemetry: ERROR: reading stdin"); return 1; }
-	if(inl > 350) { fprintf(stderr,"tx_telemetry: Warning: Input data > 300 bytes"); continue; }
-	if(inl == 0) { fprintf(stderr, "tx_telemetry: Warning: Lost connection to stdin\n"); usleep(1e5); continue;} // EOF
+		if (inl < 0) { 
+			fprintf(stderr,"tx_telemetry: ERROR: reading stdin"); 
+			return 1; 
+		}
+		if (inl > 350) { 
+			fprintf(stderr,"tx_telemetry: Warning: Input data > 300 bytes"); 
+			continue; 
+		}
+		if (inl == 0) { 
+			fprintf(stderr, "tx_telemetry: Warning: Lost connection to stdin\n"); 
+			usleep(1e5); 
+			continue;
+		} // EOF
 
-	if (param_telemetry_protocol == 0) { // parse Mavlink
-	    int i = 0;
-	    for(i=0; i < inl; i++) {
-		uint8_t c = buf[i];
-		if (mavlink_parse_char(0, c, &msg, &status)) {
-		    if (param_debug == 1) {
-			long long took = current_timestamp() - prev_time;
-			prev_time = current_timestamp();
-			fprintf(stderr, "Msg delta:%lldms seq:%d sysid:%d, compid:%d  ",took, msg.seq, msg.sysid, msg.compid);
-            		switch (msg.msgid){
-                    	    case MAVLINK_MSG_ID_SYS_STATUS:
-				fprintf(stderr, "SYS_STATUS ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_HEARTBEAT:
-				fprintf(stderr, "HEARTBEAT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_COMMAND_ACK:
-				fprintf(stderr, "COMMAND_ACK:%d ",mavlink_msg_command_ack_get_command(&msg));
-                        	break;
-                    	    case MAVLINK_MSG_ID_COMMAND_INT:
-				fprintf(stderr, "COMMAND_INT:%d ",mavlink_msg_command_int_get_command(&msg));
-                        	break;
-                    	    case MAVLINK_MSG_ID_EXTENDED_SYS_STATE:
-				fprintf(stderr, "EXTENDED_SYS_STATE: vtol_state:%d, landed_state:%d",mavlink_msg_extended_sys_state_get_vtol_state(&msg),mavlink_msg_extended_sys_state_get_landed_state(&msg));
-                        	break;
-                    	    case MAVLINK_MSG_ID_LOCAL_POSITION_NED:
-				fprintf(stderr, "LOCAL_POSITION_NED ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED:
-				fprintf(stderr, "POSITION_TARGET_LOCAL_NED ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT:
-				fprintf(stderr, "POSITION_TARGET_GLOBAL_INT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_ESTIMATOR_STATUS:
-				fprintf(stderr, "ESTIMATOR_STATUS ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_HOME_POSITION:
-				fprintf(stderr, "HIGHRES_IMU ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
-				fprintf(stderr, "NAMED_VALUE_FLOAT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_NAMED_VALUE_INT:
-				fprintf(stderr, "NAMED_VALUE_INT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_PARAM_VALUE:
-				fprintf(stderr, "PARAM_VALUE ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_PARAM_SET:
-				fprintf(stderr, "PARAM_SET ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
-				fprintf(stderr, "PARAM_REQUEST_READ ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
-				fprintf(stderr, "PARAM_REQUEST_LIST ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
-				fprintf(stderr, "RC_CHANNELS_OVERRIDE ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_RC_CHANNELS:
-				fprintf(stderr, "RC_CHANNELS ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MANUAL_CONTROL:
-				fprintf(stderr, "MANUAL_CONTROL ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_COMMAND_LONG:
-				fprintf(stderr, "COMMAND_LONG:%d ",mavlink_msg_command_long_get_command(&msg));
-                        	break;
-                    	    case MAVLINK_MSG_ID_STATUSTEXT:
-				fprintf(stderr, "STATUSTEXT: severity:%d ",mavlink_msg_statustext_get_severity(&msg));
-                        	break;
-                    	    case MAVLINK_MSG_ID_SYSTEM_TIME:
-				fprintf(stderr, "SYSTEM_TIME ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_PING:
-				fprintf(stderr, "PING ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL:
-				fprintf(stderr, "CHANGE_OPERATOR_CONTROL ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL_ACK:
-				fprintf(stderr, "CHANGE_OPERATOR_CONTROL_ACK ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
-				fprintf(stderr, "MISSION_WRITE_PARTIAL_LIST ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_ITEM:
-				fprintf(stderr, "MISSION_ITEM ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_REQUEST:
-				fprintf(stderr, "MISSION_REQUEST ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_SET_CURRENT:
-				fprintf(stderr, "MISSION_SET_CURRENT ");
-				break;
-                    	    case MAVLINK_MSG_ID_MISSION_CURRENT:
-				fprintf(stderr, "MISSION_CURRENT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
-				fprintf(stderr, "MISSION_REQUEST_LIST ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_COUNT:
-				fprintf(stderr, "MISSION_COUNT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_CLEAR_ALL:
-				fprintf(stderr, "MISSION_CLEAR_ALL ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_ACK:
-				fprintf(stderr, "MISSION_ACK ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_ITEM_INT:
-				fprintf(stderr, "MISSION_ITEM_INT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_MISSION_REQUEST_INT:
-				fprintf(stderr, "MISSION_REQUEST_INT ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_SET_MODE:
-				fprintf(stderr, "SET_MODE ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_REQUEST_DATA_STREAM:
-				fprintf(stderr, "REQUEST_DATA_STREAM ");
-                        	break;
-                    	    case MAVLINK_MSG_ID_DATA_STREAM:
-				fprintf(stderr, "DATA_STREAM ");
-                        	break;
-                	    default:
-                    		fprintf(stderr, "OTHER MESSAGE ID:%d ",msg.msgid);
-                    		break;
+		if (param_telemetry_protocol == 0) { // parse Mavlink
+			int i = 0;
+			for(i=0; i < inl; i++) {
+				uint8_t c = buf[i];
+				if (mavlink_parse_char(0, c, &msg, &status)) {
+					if (param_debug == 1) {
+						long long took = current_timestamp() - prev_time;
+						prev_time = current_timestamp();
+						fprintf(stderr, "Msg delta:%lldms seq:%d sysid:%d, compid:%d  ",took, msg.seq, msg.sysid, msg.compid);
+						switch (msg.msgid){
+						case MAVLINK_MSG_ID_SYS_STATUS:
+							fprintf(stderr, "SYS_STATUS ");
+							break;
+						case MAVLINK_MSG_ID_HEARTBEAT:
+							fprintf(stderr, "HEARTBEAT ");
+							break;
+						case MAVLINK_MSG_ID_COMMAND_ACK:
+							fprintf(stderr, "COMMAND_ACK:%d ",mavlink_msg_command_ack_get_command(&msg));
+							break;
+						case MAVLINK_MSG_ID_COMMAND_INT:
+							fprintf(stderr, "COMMAND_INT:%d ",mavlink_msg_command_int_get_command(&msg));
+							break;
+						case MAVLINK_MSG_ID_EXTENDED_SYS_STATE:
+							fprintf(stderr, "EXTENDED_SYS_STATE: vtol_state:%d, landed_state:%d",mavlink_msg_extended_sys_state_get_vtol_state(&msg),mavlink_msg_extended_sys_state_get_landed_state(&msg));
+							break;
+						case MAVLINK_MSG_ID_LOCAL_POSITION_NED:
+							fprintf(stderr, "LOCAL_POSITION_NED ");
+							break;
+						case MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED:
+							fprintf(stderr, "POSITION_TARGET_LOCAL_NED ");
+							break;
+						case MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT:
+							fprintf(stderr, "POSITION_TARGET_GLOBAL_INT ");
+							break;
+						case MAVLINK_MSG_ID_ESTIMATOR_STATUS:
+							fprintf(stderr, "ESTIMATOR_STATUS ");
+							break;
+						case MAVLINK_MSG_ID_HOME_POSITION:
+							fprintf(stderr, "HIGHRES_IMU ");
+							break;
+						case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
+							fprintf(stderr, "NAMED_VALUE_FLOAT ");
+							break;
+						case MAVLINK_MSG_ID_NAMED_VALUE_INT:
+							fprintf(stderr, "NAMED_VALUE_INT ");
+							break;
+						case MAVLINK_MSG_ID_PARAM_VALUE:
+							fprintf(stderr, "PARAM_VALUE ");
+							break;
+						case MAVLINK_MSG_ID_PARAM_SET:
+							fprintf(stderr, "PARAM_SET ");
+							break;
+						case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
+							fprintf(stderr, "PARAM_REQUEST_READ ");
+							break;
+						case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
+							fprintf(stderr, "PARAM_REQUEST_LIST ");
+							break;
+						case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
+							fprintf(stderr, "RC_CHANNELS_OVERRIDE ");
+							break;
+						case MAVLINK_MSG_ID_RC_CHANNELS:
+							fprintf(stderr, "RC_CHANNELS ");
+							break;
+						case MAVLINK_MSG_ID_MANUAL_CONTROL:
+							fprintf(stderr, "MANUAL_CONTROL ");
+							break;
+						case MAVLINK_MSG_ID_COMMAND_LONG:
+							fprintf(stderr, "COMMAND_LONG:%d ",mavlink_msg_command_long_get_command(&msg));
+							break;
+						case MAVLINK_MSG_ID_STATUSTEXT:
+							fprintf(stderr, "STATUSTEXT: severity:%d ",mavlink_msg_statustext_get_severity(&msg));
+							break;
+						case MAVLINK_MSG_ID_SYSTEM_TIME:
+							fprintf(stderr, "SYSTEM_TIME ");
+							break;
+						case MAVLINK_MSG_ID_PING:
+							fprintf(stderr, "PING ");
+							break;
+						case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL:
+							fprintf(stderr, "CHANGE_OPERATOR_CONTROL ");
+							break;
+						case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL_ACK:
+							fprintf(stderr, "CHANGE_OPERATOR_CONTROL_ACK ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
+							fprintf(stderr, "MISSION_WRITE_PARTIAL_LIST ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_ITEM:
+							fprintf(stderr, "MISSION_ITEM ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_REQUEST:
+							fprintf(stderr, "MISSION_REQUEST ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_SET_CURRENT:
+							fprintf(stderr, "MISSION_SET_CURRENT ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_CURRENT:
+							fprintf(stderr, "MISSION_CURRENT ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
+							fprintf(stderr, "MISSION_REQUEST_LIST ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_COUNT:
+							fprintf(stderr, "MISSION_COUNT ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_CLEAR_ALL:
+							fprintf(stderr, "MISSION_CLEAR_ALL ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_ACK:
+							fprintf(stderr, "MISSION_ACK ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_ITEM_INT:
+							fprintf(stderr, "MISSION_ITEM_INT ");
+							break;
+						case MAVLINK_MSG_ID_MISSION_REQUEST_INT:
+							fprintf(stderr, "MISSION_REQUEST_INT ");
+							break;
+						case MAVLINK_MSG_ID_SET_MODE:
+							fprintf(stderr, "SET_MODE ");
+							break;
+						case MAVLINK_MSG_ID_REQUEST_DATA_STREAM:
+							fprintf(stderr, "REQUEST_DATA_STREAM ");
+							break;
+						case MAVLINK_MSG_ID_DATA_STREAM:
+							fprintf(stderr, "DATA_STREAM ");
+							break;
+						default:
+							fprintf(stderr, "OTHER MESSAGE ID:%d ",msg.msgid);
+							break;
+						}
+						fprintf(stderr, "\n");
+					}
+					len_msg = mavlink_msg_to_send_buffer(mavlink_message, &msg);
+					if (param_retransmissions == 1) {
+						sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
+					} else { // send twice
+						sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
+						usleep(500); // wait 0.5ms to increase probability of 2nd packet coming through
+						sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
+					}
+					pcnt++;
+					seqno++;
+				}
 			}
-			fprintf(stderr, "\n");
-		    }
-		    len_msg = mavlink_msg_to_send_buffer(mavlink_message, &msg);
-		    if (param_retransmissions == 1) {
-			sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
-		    } else { // send twice
-			sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
-			usleep(500); // wait 0.5ms to increase probability of 2nd packet coming through
-			sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
-		    }
-		    pcnt++;
-		    seqno++;
+		} else { // generic telemetry handling
+				if (param_retransmissions == 1) {
+					sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
+			} else { // send twice
+				sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
+				usleep(500); // wait 0.5ms to increase probability of 2nd packet coming through
+				sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
+			}
+			pcnt++;
+			seqno++;
 		}
-	    }
-	} else { // generic telemetry handling
-	        if (param_retransmissions == 1) {
-		    sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
-		} else { // send twice
-		    sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
-		    usleep(500); // wait 0.5ms to increase probability of 2nd packet coming through
-		    sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
-		}
-		pcnt++;
-		seqno++;
-	}
 
-	if(pcnt % 128 == 0) {
-	    printf("\t\t%d packets sent\r", pcnt);
-	    fflush(stdout);
-	}
+		if(pcnt % 128 == 0) {
+			printf("\t\t%d packets sent\r", pcnt);
+			fflush(stdout);
+		}
     }
 
     printf("TX_TELEMETRY ERROR: Broken socket!\n");
+	iniparser_freedict(ini);
     return (0);
 }
