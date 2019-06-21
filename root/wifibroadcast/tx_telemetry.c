@@ -301,8 +301,8 @@ int main(int argc, char *argv[]) {
 	param_data_rate = iniparser_getint(ini, "tx_telemetry:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx_telemetry:mode", 0);
 
-	fprintf(stderr, "Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, nic %s\n",
-			param_cts, param_port, param_retransmissions, param_telemetry_protocol,
+	fprintf(stderr, "%s Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, nic %s\n",
+			argv[0], param_cts, param_port, param_retransmissions, param_telemetry_protocol,
 			param_data_rate, param_transmission_mode, iniparser_getstring(ini, "tx_telemetry:nic", NULL)
 	);
     int x = optind;

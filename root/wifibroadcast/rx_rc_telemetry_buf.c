@@ -407,6 +407,12 @@ int main(int argc, char *argv[])
 	param_recording_dir = iniparser_getstring(ini, "rx_telemetry:recording_dir", NULL);
 	sprintf(recording_dir_buf, "%s/telemetry-%lld.log", param_recording_dir, 
 														current_timestamp());
+	
+	fprintf(stderr, "%s Config: port %d, nic %s, UDP %s:%d bind :%d, recording %d, file %s\n",
+		argv[0], param_port, param_nic, param_udp_ip, param_udp_port, param_udp_bind_port,
+		param_recording_en, recording_dir_buf
+	);
+	
 	bzero(&udp_send_addr, slen);
 	udp_send_addr.sin_family = AF_INET;
 	udp_send_addr.sin_port = htons(param_udp_port);

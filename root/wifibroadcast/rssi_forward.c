@@ -107,8 +107,8 @@ int main(int argc, char *argv[]) {
 	
 	char *file = argv[1];
 	dictionary *ini = iniparser_load(file);
-	fprintf(stderr, "Send to %s:%s, source port %s\n", 
-			iniparser_getstring(ini, "rssirx:udp_ip", NULL), 
+	fprintf(stderr, "%s Config: Send to %s:%s, source port %s\n", 
+			argv[0], iniparser_getstring(ini, "rssirx:udp_ip", NULL), 
 			iniparser_getstring(ini, "rssirx:udp_port", NULL), 
 			iniparser_getstring(ini, "rssirx:udp_bind_port", NULL));
 	
@@ -119,8 +119,6 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in si_other_rssi;
 	struct sockaddr_in source_addr;	
 	int s_rssi, slen_rssi=sizeof(si_other_rssi);
-	
-	fprintf(stderr,"rssi_forward started\n");
 
 	si_other_rssi.sin_family = AF_INET;
 	si_other_rssi.sin_port = htons(port);

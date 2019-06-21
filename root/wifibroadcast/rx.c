@@ -632,8 +632,18 @@ int main(int argc, char *argv[]) {
 								MAX_USER_PACKET_LENGTH, param_packet_length);
 		return (1);
 	}
-
-	fprintf("Config: packet %d/%d/%d, port %d, buf %d, rate");
+	char save_filename[128];	// should enough..?
+	bzero(&save_filename, sizeof(save_filename));
+	if (param_recording_en) {		
+		// use timestamp in filename
+		sprintf(save_filename, "%s/video-%lld.h264", 
+				iniparser_getstring(ini, "rx:recording_dir", NULL), current_timestamp());
+		save_fd = fopen(save_filename, "wb");
+	}
+	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, buf %d, recording %d, recordpath %s\n",
+		argv[0], param_data_packets_per_block, param_fec_packets_per_block, param_packet_length,
+		param_port, param_block_buffers, param_recording_en, save_filename
+	);
 
 	fec_init();
 
@@ -658,19 +668,6 @@ int main(int argc, char *argv[]) {
 	udp_bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	// always bind on the same source port to avoid UDP "connection" fail
 	bind(udp_sockfd, (struct sockaddr*)&udp_bind_addr, sizeof(udp_bind_addr));
-	
-
-	
-	
-	if (param_recording_en) {	
-		char save_filename[128];	// should enough..?
-		bzero(&save_filename, sizeof(save_filename));
-		// use timestamp in filename
-		sprintf(save_filename, "%s/video-%lld.h264", 
-				iniparser_getstring(ini, "rx:recording_dir", NULL), current_timestamp());
-		save_fd = fopen(save_filename, "wb");
-	}
-	
 	
 	// ini supports only support one interface now
 	// should be fixed later

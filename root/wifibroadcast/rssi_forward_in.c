@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 	
 	char *file = argv[1];
 	dictionary *ini = iniparser_load(file);
-	fprintf(stderr, "Listen %s\n", 
+	fprintf(stderr, "%s Config: UDP :%s\n", argv[0],
 			iniparser_getstring(ini, "rssi_in:udp_port", NULL));
 			
 	int ret = 0;
