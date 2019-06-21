@@ -53,7 +53,7 @@ int param_debug = 0;
 int param_udp_port = 30000;
 int param_udp_bind_port = 20000;
 char *param_udp_ip;
-int param_recording;
+int param_recording_en;
 char * param_recording_dir;
 char recording_dir_buf[128];
 char *param_nic;
@@ -158,11 +158,11 @@ void open_and_configure_interface(const char *name, monitor_interface_t *interfa
 
 	// match (RTS BF) or (DATA, DATA SHORT, RTS (and port))
 	if (nLinkEncap == DLT_IEEE802_11_RADIO) {
-	    if (param_rc_protocol != 99) { // only match on R/C packets if R/C enabled
-		sprintf(szProgram, "ether[0x00:4] == 0xb4bf0000 || ((ether[0x00:2] == 0x0801 || ether[0x00:2] == 0x0802 || ether[0x00:4] == 0xb4010000) && ether[0x04:1] == 0x%.2x)", port_encoded);
-	    } else {
+//	    if (param_rc_protocol != 99) { // only match on R/C packets if R/C enabled
+//		sprintf(szProgram, "ether[0x00:4] == 0xb4bf0000 || ((ether[0x00:2] == 0x0801 || ether[0x00:2] == 0x0802 || ether[0x00:4] == 0xb4010000) && ether[0x04:1] == 0x%.2x)", port_encoded);
+//	    } else {
 		sprintf(szProgram, "(ether[0x00:2] == 0x0801 || ether[0x00:2] == 0x0802 || ether[0x00:4] == 0xb4010000) && ether[0x04:1] == 0x%.2x", port_encoded);
-	    }
+//	    }
 	} else {
 		fprintf(stderr, "ERROR: unknown encapsulation on %s! check if monitor mode is supported and enabled\n", name);
 		exit(1);
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
 	long long prev_time = 0;
 	long long delta = 0;
 	monitor_interface_t interfaces[8];
-	int i, p, serialport, num_interfaces = 0;
+	int i, p, num_interfaces = 0;
 	int writefailcounter, writesuccess, atleastonebufferfilled, lostpackets, nothing_received_cnt = 0;
 	int abuffers_filled = 0;
 	char path[45], line[100];
@@ -392,7 +392,8 @@ int main(int argc, char *argv[])
 	for (p=0; p<100; p++) {
 		bzero(&(buffer[p]), sizeof(buffer_t));
 	}
-
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
 	// 0. Get args 
 	printf("RX Telemetry_buf started\n");
 	srand(time(NULL));
@@ -402,9 +403,9 @@ int main(int argc, char *argv[])
 	param_udp_ip = iniparser_getstring(ini, "rx_telemetry:udp_ip", NULL);
 	param_udp_port = iniparser_getint(ini, "rx_telemetry:udp_port", 0);
 	param_udp_bind_port = iniparser_getint(ini, "rx_telemetry:udp_bind_port", 0);
-	param_recording = iniparser_getboolean(ini, "rx_telemetry:recording", 0);
+	param_recording_en = iniparser_getboolean(ini, "rx_telemetry:recording", 0);
 	param_recording_dir = iniparser_getstring(ini, "rx_telemetry:recording_dir", NULL);
-	sprintf(recording_dir_buf, "%s/telemetry-%d.log", param_recording_dir, 
+	sprintf(recording_dir_buf, "%s/telemetry-%lld.log", param_recording_dir, 
 														current_timestamp());
 	bzero(&udp_send_addr, slen);
 	udp_send_addr.sin_family = AF_INET;

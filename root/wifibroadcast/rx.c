@@ -57,6 +57,8 @@ int udp_sockfd, slen = sizeof(udp_send_addr);
 int save_fd;
 int param_recording_en;
 char *param_recording_path;
+int param_data_rate;
+int param_transmission_mode;
 
 long long current_timestamp() {
     struct timeval te; 
@@ -620,11 +622,11 @@ int main(int argc, char *argv[]) {
 	param_data_packets_per_block = iniparser_getint(ini, "rx:datanum", 0); 
 	param_packet_length = iniparser_getint(ini, "rx:packetsize", 0);
 	param_port = iniparser_getint(ini, "rx:port", 0);
-	param_block_buffers = = iniparser_getint(ini, "rx:bufsize", 0);
+	param_block_buffers = iniparser_getint(ini, "rx:bufsize", 0);
 	param_data_rate = iniparser_getint(ini, "rx:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "rx:mode", 0);
 	param_recording_en = iniparser_getboolean(ini, "rx:recording", 0);
-	param_recording_path = iniparser_getstring(ini, "rx:recording_dir", NULL)
+	param_recording_path = iniparser_getstring(ini, "rx:recording_dir", NULL);
 	if (param_packet_length > MAX_USER_PACKET_LENGTH) {
 		printf("Packet length is limited to %d bytes (you requested %d bytes)\n", 
 								MAX_USER_PACKET_LENGTH, param_packet_length);
@@ -662,7 +664,7 @@ int main(int argc, char *argv[]) {
 		char save_filename[128];	// should enough..?
 		bzero(&save_filename, sizeof(save_filename));
 		// use timestamp in filename
-		sprintf(save_filename, "%s/video-%d.h264", 
+		sprintf(save_filename, "%s/video-%lld.h264", 
 				iniparser_getstring(ini, "rx:recording_dir", NULL), current_timestamp());
 		save_fd = fopen(save_filename, "wb");
 	}
