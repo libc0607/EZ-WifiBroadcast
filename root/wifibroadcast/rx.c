@@ -625,7 +625,7 @@ int main(int argc, char *argv[]) {
 	param_block_buffers = iniparser_getint(ini, "rx:bufsize", 0);
 //	param_data_rate = iniparser_getint(ini, "rx:rate", 0);
 //	param_transmission_mode = iniparser_getint(ini, "rx:mode", 0);
-	param_recording_en = iniparser_getboolean(ini, "rx:recording", 0);
+	param_recording_en = iniparser_getint(ini, "rx:recording", 0);
 	param_recording_path = iniparser_getstring(ini, "rx:recording_dir", NULL);
 	if (param_packet_length > MAX_USER_PACKET_LENGTH) {
 		printf("Packet length is limited to %d bytes (you requested %d bytes)\n", 

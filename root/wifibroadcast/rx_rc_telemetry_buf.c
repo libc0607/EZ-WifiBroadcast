@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
 	param_udp_ip = iniparser_getstring(ini, "rx_telemetry:udp_ip", NULL);
 	param_udp_port = iniparser_getint(ini, "rx_telemetry:udp_port", 0);
 	param_udp_bind_port = iniparser_getint(ini, "rx_telemetry:udp_bind_port", 0);
-	param_recording_en = iniparser_getboolean(ini, "rx_telemetry:recording", 0);
+	param_recording_en = iniparser_getint(ini, "rx_telemetry:recording", 0);
 	param_recording_dir = iniparser_getstring(ini, "rx_telemetry:recording_dir", NULL);
 	sprintf(recording_dir_buf, "%s/telemetry-%lld.log", param_recording_dir, 
 														current_timestamp());

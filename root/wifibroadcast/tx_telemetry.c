@@ -294,7 +294,7 @@ int main(int argc, char *argv[]) {
 	if (argc !=2) {
 		usage();
 	}
-	param_cts = iniparser_getboolean(ini, "tx_telemetry:cts_protection", 0);
+	param_cts = iniparser_getint(ini, "tx_telemetry:cts_protection", 0);
 	param_port = iniparser_getint(ini, "tx_telemetry:port", 0);
 	param_retransmissions = iniparser_getint(ini, "tx_telemetry:retrans_count", 0);
 	param_telemetry_protocol = iniparser_getint(ini, "tx_telemetry:tele_protocol", 0);
