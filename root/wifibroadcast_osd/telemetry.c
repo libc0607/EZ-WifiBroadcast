@@ -9,7 +9,6 @@
 void telemetry_init(telemetry_data_t *td) {
 	td->validmsgsrx = 0;
 	td->datarx = 0;
-
 	td->voltage = 0;
 	td->ampere = 0;
 	td->mah = 0;
@@ -28,21 +27,13 @@ void telemetry_init(telemetry_data_t *td) {
 	td->armed = 255;
 	td->rssi = 0;
 	td->home_fix = 0;
-
-#ifdef FRSKY
 	td->x = 0;
 	td->y = 0;
 	td->z = 0;
 	td->ew = 0;
 	td->ns = 0;
-#endif
-
-#ifdef MAVLINK
     td->mav_flightmode = 255;
     td->mav_climb = 0;
-#endif
-
-#ifdef LTM
 // ltm S frame
     td->ltm_status = 0;
     td->ltm_failsafe = 0;
@@ -62,23 +53,14 @@ void telemetry_init(telemetry_data_t *td) {
     td->ltm_home_altitude = 0;
     td->ltm_home_longitude = 0;
     td->ltm_home_latitude = 0;
-#endif
-
-
-#ifdef DOWNLINK_RSSI
 	td->rx_status = telemetry_wbc_status_memory_open();
-#endif
-
-#ifdef UPLINK_RSSI
 	td->rx_status_uplink = telemetry_wbc_status_memory_open_uplink();
 	td->rx_status_rc = telemetry_wbc_status_memory_open_rc();
-#endif
 
 td->rx_status_osd = telemetry_wbc_status_memory_open_osd();
 td->rx_status_sysair = telemetry_wbc_status_memory_open_sysair();
 }
 
-#ifdef DOWNLINK_RSSI
 wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
         int fd = 0;
 	int sharedmem = 0;
@@ -95,7 +77,6 @@ wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
         if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
         return (wifibroadcast_rx_status_t*)retval;
 }
-#endif
 
 wifibroadcast_rx_status_t_osd *telemetry_wbc_status_memory_open_osd(void) {
         int fd = 0;
@@ -114,8 +95,6 @@ wifibroadcast_rx_status_t_osd *telemetry_wbc_status_memory_open_osd(void) {
         return (wifibroadcast_rx_status_t_osd*)retval;
 }
 
-
-#ifdef UPLINK_RSSI
 wifibroadcast_rx_status_t_rc *telemetry_wbc_status_memory_open_rc(void) {
         int fd = 0;
 	int sharedmem = 0;
@@ -149,7 +128,6 @@ wifibroadcast_rx_status_t_uplink *telemetry_wbc_status_memory_open_uplink(void) 
         if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
         return (wifibroadcast_rx_status_t_uplink*)retval;
 }
-#endif
 
 wifibroadcast_rx_status_t_sysair *telemetry_wbc_status_memory_open_sysair(void) {
         int fd = 0;
