@@ -170,6 +170,12 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"iniparser: failed to load %s.\n", file);
 		exit(1);
 	}
+	if (strcmp(iniparser_getstring(ini, "rssi_in:mode", NULL), "rx")) {
+		fprintf(stderr, "Sleep - not rx mode ...\n");
+		while(1) {
+			sleep(50000);
+		}
+	}
 	fprintf(stderr, "%s Config: UDP :%s\n", argv[0],
 			iniparser_getstring(ini, "rssi_in:udp_port", NULL));
 			

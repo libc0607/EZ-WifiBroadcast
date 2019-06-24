@@ -259,7 +259,13 @@ int main (int argc, char **argv)
 		fprintf(stderr,"iniparser: failed to load %s.\n", file);
 		exit(1);
 	}
-	fprintf(stderr, "Listen UDP port %s, buf size %s\n", 
+	if (strcmp(iniparser_getstring(ini, "video:mode", NULL), "rx")) {
+		fprintf(stderr, "Sleep - not rx mode ...\n");
+		while(1) {
+			sleep(50000);
+		}
+	}
+	fprintf(stderr, "Mode rx, Listen UDP port %s, buf size %s\n", 
 			iniparser_getstring(ini, "video:udp_port", NULL), 
 			iniparser_getstring(ini, "video:udp_bufsize", NULL));
 	
