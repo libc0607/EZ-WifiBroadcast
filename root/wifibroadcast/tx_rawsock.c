@@ -513,6 +513,10 @@ int main(int argc, char *argv[]) {
 	}
 	char *file = argv[1];
 	dictionary *ini = iniparser_load(file);
+	if (!ini) {
+		fprintf(stderr,"iniparser: failed to load %s.\n", file);
+		exit(1);
+	}
 	
 	param_fec_packets_per_block = iniparser_getint(ini, "tx:fecnum", 0);
 	param_data_packets_per_block = iniparser_getint(ini, "tx:datanum", 0); 

@@ -107,6 +107,10 @@ int main(int argc, char *argv[]) {
 	
 	char *file = argv[1];
 	dictionary *ini = iniparser_load(file);
+	if (!ini) {
+		fprintf(stderr,"iniparser: failed to load %s.\n", file);
+		exit(1);
+	}
 	fprintf(stderr, "%s Config: Send to %s:%s, source port %s\n", 
 			argv[0], iniparser_getstring(ini, "rssirx:udp_ip", NULL), 
 			iniparser_getstring(ini, "rssirx:udp_port", NULL), 

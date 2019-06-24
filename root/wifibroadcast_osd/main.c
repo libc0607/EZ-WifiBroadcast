@@ -141,7 +141,12 @@ int main(int argc, char *argv[])
 	
 	
 	dictionary *ini = iniparser_load(file);
+	if (!ini) {
+		fprintf(stderr,"iniparser: failed to load %s.\n", file);
+		exit(EXIT_FAILURE);
+	}
 	load_ini(ini);
+
 	
     fprintf(stderr,"OSD: Initializing sharedmem ...\n");
     telemetry_init(&td);

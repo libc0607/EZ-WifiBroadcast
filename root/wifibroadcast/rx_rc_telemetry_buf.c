@@ -394,6 +394,10 @@ int main(int argc, char *argv[])
 	}
 	char *file = argv[1];
 	dictionary *ini = iniparser_load(file);
+	if (!ini) {
+		fprintf(stderr,"iniparser: failed to load %s.\n", file);
+		exit(1);
+	}
 	// 0. Get args 
 	printf("RX Telemetry_buf started\n");
 	srand(time(NULL));
