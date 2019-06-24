@@ -57,6 +57,10 @@ add_executable(check_alive  check_alive.c )
 target_link_libraries(check_alive rt pcap)
 install (TARGETS check_alive DESTINATION bin)
 
+add_executable(check_alive_in  check_alive_in.c )
+target_link_libraries(check_alive_in rt pcap)
+install (TARGETS check_alive_in DESTINATION bin)
+
 add_executable(rssi_forward  rssi_forward.c )
 target_link_libraries(rssi_forward rt pcap iniparser)
 install (TARGETS rssi_forward DESTINATION bin)
