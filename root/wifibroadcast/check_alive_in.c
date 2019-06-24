@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
 	
 	
 	int16_t port = atoi(iniparser_getstring(ini, "alive_in:udp_port", NULL));
-	char *param_exec = iniparser_getstring(ini, "alive_in:exec", NULL)
+	char *param_exec = iniparser_getstring(ini, "alive_in:exec", NULL);
 	struct sockaddr_in send_addr;
 	struct sockaddr_in source_addr;	
 	int sockfd, slen = sizeof(send_addr);
