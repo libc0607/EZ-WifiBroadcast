@@ -208,5 +208,6 @@ int main(int argc, char *argv[]) {
 	    usleep(100000);
 	}
 	iniparser_freedict(ini);
+	close(sockfd);
 	return 0;
 }
