@@ -54,11 +54,11 @@ target_link_libraries(syslogger rt pcap)
 install (TARGETS syslogger DESTINATION bin)
 
 add_executable(check_alive  check_alive.c )
-target_link_libraries(check_alive rt pcap)
+target_link_libraries(check_alive rt pcap iniparser)
 install (TARGETS check_alive DESTINATION bin)
 
 add_executable(check_alive_in  check_alive_in.c )
-target_link_libraries(check_alive_in rt pcap)
+target_link_libraries(check_alive_in rt pcap iniparser)
 install (TARGETS check_alive_in DESTINATION bin)
 
 add_executable(rssi_forward  rssi_forward.c )
