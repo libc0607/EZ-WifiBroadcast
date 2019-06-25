@@ -445,7 +445,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 	fgets(line, 100, procfile); // read the first line
-	fgets(line, 100, procfile); // read the 2nd line
+//	fgets(line, 100, procfile); // read the 2nd line
 	if(strncmp(line, "DRIVER=ath9k", 12) == 0) { 
 		fprintf(stderr, "RX_RC_TELEMETRY: Driver: Atheros\n");
 	} else { 
