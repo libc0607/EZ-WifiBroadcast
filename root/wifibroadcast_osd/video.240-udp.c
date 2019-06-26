@@ -38,6 +38,8 @@ udp_bufsize=524288 	#byte
 */
 // Listen UDP Port 35005, UDP recv bufsize = 512kb
 
+// If build failed, check Makefile: LDFLAGS+=-lilclient -liniparser
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,7 +57,8 @@ udp_bufsize=524288 	#byte
 #include <fcntl.h>
 #include <iniparser.h>
 
-static int video_decode_test(char *udp_port, char *buf_size)
+
+static int video_decode_test(char *udp_port, char *buf_size, dictionary *ini)
 {
 	OMX_VIDEO_PARAM_PORTFORMATTYPE format;
 	OMX_TIME_CONFIG_CLOCKSTATETYPE cstate;
@@ -248,7 +251,6 @@ static int video_decode_test(char *udp_port, char *buf_size)
 	return status;
 }
 
-dictionary *ini;
 int main (int argc, char **argv)
 {
 	bcm_host_init();
@@ -271,6 +273,6 @@ int main (int argc, char **argv)
 	
 	//return video_decode_test(argv[1], argv[2]);
 	return video_decode_test(iniparser_getstring(ini, "video:udp_port", NULL), 
-								iniparser_getstring(ini, "video:udp_bufsize", NULL));
+								iniparser_getstring(ini, "video:udp_bufsize", NULL), ini);
 }
 

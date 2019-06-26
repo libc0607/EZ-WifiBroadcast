@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 
 	bzero(&addr, sizeof(addr));
 	addr.sin_family = AF_INET;
-	udp_listen_port_char = iniparser_getstring(ini, "rx_telemetry:udp_port", NULL);
+	udp_listen_port_char = iniparser_getstring(ini, "osd:udp_port", NULL);
 	addr.sin_port = htons(atoi(udp_listen_port_char));
 	fprintf(stderr, "UDP Listen port %s\n", udp_listen_port_char);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
