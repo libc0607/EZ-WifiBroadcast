@@ -5,7 +5,25 @@
 CAM=`/usr/bin/vcgencmd get_camera | nice grep -c detected=1`
 rm /etc/monit/conf.d/wbc-air.conf 2>/dev/null
 rm /etc/monit/conf.d/wbc-ground.conf 2>/dev/null
-echo "0" >/tmp/undervolt
+
+if vcgencmd get_throttled | nice grep -q -v "0x0"; then
+	TEMP=`cat /sys/class/thermal/thermal_zone0/temp`
+	TEMP_C=$(($TEMP/1000))
+	if [ "$TEMP_C" -lt 75 ]; then # it must be under-voltage
+		echo "  ---------------------------------------------------------------------------------------------------" >> /boot/UNDERVOLTAGE-ERROR!!!.txt
+		echo "  | ERROR: Under-Voltage detected on the TX Pi. Your Pi is not supplied with stable 5 Volts.        |" >> /boot/UNDERVOLTAGE-ERROR!!!.txt
+		echo "  | Either your power-supply or wiring is not sufficent, check the wiring instructions in the Wiki. |" >> /boot/UNDERVOLTAGE-ERROR!!!.txt
+		echo "  | Set Video Bitrate lower in LuCI (~1000kbit) to reduce current consumption!                      |" >> /boot/UNDERVOLTAGE-ERROR!!!.txt
+		echo "  | When you have fixed wiring/power-supply, delete this file and make sure it doesn't re-appear!   |" >> /boot/UNDERVOLTAGE-ERROR!!!.txt
+		echo "  ---------------------------------------------------------------------------------------------------" >> /boot/UNDERVOLTAGE-ERROR!!!.txt
+		echo "1" > /tmp/undervolt
+	else 
+		echo "0" > /tmp/undervolt
+	fi
+else
+	echo "0" > /tmp/undervolt
+fi
+
 if [ "$CAM" == "0" ]; then
 	echo "0" > /tmp/cam
 	echo "Camera not found."
