@@ -70,7 +70,12 @@ int main(int argc, char *argv[]) {
 	
 	if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) 
 		printf("ERROR: Could not create UDP socket!");
-	bind(sockfd, (struct sockaddr*)&source_addr, sizeof(source_addr));
+	if (-1 == bind(sockfd, (struct sockaddr*)&source_addr, sizeof(source_addr))) {
+		fprintf(stderr, "Bind UDP port failed.\n");
+		iniparser_freedict(ini);
+		close(sockfd);
+		return 0;
+	}
 	
     wifibroadcast_rx_status_t *t = status_memory_open();
 	

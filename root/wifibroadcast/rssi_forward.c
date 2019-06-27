@@ -174,7 +174,12 @@ int main(int argc, char *argv[]) {
 	
 	// always bind on the same source port to avoid UDP "connection" fail
 	// see https://unix.stackexchange.com/questions/420570/udp-port-unreachable-although-process-is-listening
-	bind(s_rssi, (struct sockaddr*)&source_addr, sizeof(source_addr));
+	if (-1 == bind(s_rssi, (struct sockaddr*)&source_addr, sizeof(source_addr))) {
+		fprintf(stderr, "Bind UDP port failed.\n");
+		iniparser_freedict(ini);
+		close(s_rssi);
+		return 0;
+	}
 	
 	for(;;) {
 	    wbcdata.damaged_block_cnt = htonl(t->damaged_block_cnt);

@@ -429,7 +429,12 @@ int main(int argc, char *argv[])
 	udp_bind_addr.sin_port = htons(param_udp_bind_port);
 	udp_bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	// always bind on the same source port to avoid UDP "connection" fail
-	bind(udp_sockfd, (struct sockaddr*)&udp_bind_addr, sizeof(udp_bind_addr));
+	if (-1 == bind(udp_sockfd, (struct sockaddr*)&udp_bind_addr, sizeof(udp_bind_addr))) {
+		fprintf(stderr, "Bind UDP port failed.\n");
+		iniparser_freedict(ini);
+		close(udp_sockfd);
+		return 0;
+	}
 	
 	if (param_recording_en) {	
 		save_fd = fopen(recording_dir_buf, "wb");

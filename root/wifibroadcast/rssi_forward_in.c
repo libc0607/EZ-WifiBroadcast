@@ -193,7 +193,12 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "ERROR: Could not create UDP socket!");
 		exit(1);
 	}
-	bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
+	if (-1 == bind(sockfd, (struct sockaddr*)&addr, sizeof(addr))) {
+		fprintf(stderr, "Bind UDP port failed.\n");
+		iniparser_freedict(ini);
+		close(sockfd);
+		return 0;
+	}
 
 	wifibroadcast_rx_status_t *t = status_memory_open();
 	wifibroadcast_rx_status_t *t_tdown = status_memory_open_tdown();
