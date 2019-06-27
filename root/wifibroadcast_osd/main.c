@@ -166,7 +166,12 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "ERROR: Could not create UDP socket!\n");
 		exit(1);
 	}
-	bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
+	if (-1 == bind(sockfd, (struct sockaddr*)&addr, sizeof(addr))) {
+		fprintf(stderr, "Bind UDP port failed.\n");
+		iniparser_freedict(ini);
+		close(sockfd);
+		return 0;
+	}
 	
     fp3 = fopen("/tmp/undervolt","r");
     if(NULL == fp3) {
