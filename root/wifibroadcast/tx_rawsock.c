@@ -567,8 +567,8 @@ int main(int argc, char *argv[]) {
 
     packet_header_length = packet_header_init(packet_transmit_buffer, param_packet_type, param_data_rate, param_port);
 
-    //input.fd = STDIN_FILENO;	// udp mod
-	input.fd = udp_sockfd;
+    input.fd = STDIN_FILENO;	
+	//input.fd = udp_sockfd;	// udp mod
     input.seq_nr = 0;
     input.curr_pb = 0;
     input.pbl = lib_alloc_packet_buffer_list(param_data_packets_per_block, MAX_PACKET_LENGTH);
@@ -612,9 +612,9 @@ int main(int argc, char *argv[]) {
 		}
 		
 		//read the data
-		//int inl = read(input.fd, pb->data + pb->len, param_packet_length - pb->len); 
-		int inl = recvfrom(input.fd, pb->data + pb->len, param_packet_length-pb->len, 
-							0, (struct sockaddr*)&udp_addr, &udp_slen);
+		int inl = read(input.fd, pb->data + pb->len, param_packet_length - pb->len); 
+		//int inl = recvfrom(input.fd, pb->data + pb->len, param_packet_length-pb->len, 
+		//					0, (struct sockaddr*)&udp_addr, &udp_slen);
 		 
 		if (inl < 0 || inl > param_packet_length-pb->len) {
 			perror("reading input");
