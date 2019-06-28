@@ -10,7 +10,7 @@ install (TARGETS rx DESTINATION bin)
 
 add_executable(rx_rc_telemetry_buf  rx_rc_telemetry_buf.c  lib.c  radiotap.c)
 target_link_libraries(rx_rc_telemetry_buf rt pcap iniparser)
-install (TARGETS rx_rc_telemetry DESTINATION bin)
+install (TARGETS rx_rc_telemetry_buf DESTINATION bin)
 
 add_executable(rssirx  rssirx.c  lib.c  radiotap.c )
 target_link_libraries(rssirx rt pcap iniparser)
