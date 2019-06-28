@@ -538,12 +538,12 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "ERROR: Could not create UDP socket!");
 		exit(1);
 	}
-	if (-1 == bind(udp_sockfd, (struct sockaddr*)&udp_addr, sizeof(udp_addr))) {
+/* 	if (-1 == bind(udp_sockfd, (struct sockaddr*)&udp_addr, sizeof(udp_addr))) {
 		fprintf(stderr, "Bind UDP port failed.\n");
 		iniparser_freedict(ini);
 		close(udp_sockfd);
 		return 0;
-	}
+	} */
 	int udp_bufsize = iniparser_getint(ini, "tx:udp_bufsize", 0);
 	// We should increase net.core.rmem_max as well (>= udp_bufsize/2)
     setsockopt(udp_sockfd, SOL_SOCKET, SO_RCVBUF, (const char*)&udp_bufsize, sizeof(udp_bufsize));
