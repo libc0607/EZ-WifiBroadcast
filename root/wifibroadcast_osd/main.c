@@ -212,16 +212,16 @@ int main(int argc, char *argv[])
 			}
 			
 			switch (i_telemetry_type) {
-			case 0:
+			case LTM:
 				do_render = ltm_read(&td, buf, n);
 				break;
-			case 1:
+			case MAVLINK:
 				do_render = mavlink_read(&td, buf, n);
 				break;
-			case 2:
+			case FRSKY:
 				frsky_parse_buffer(&fs, &td, buf, n);
 				break;
-			case 3:
+			case SMARTPORT:
 				smartport_read(&td, buf, n);
 				break;	
 			}

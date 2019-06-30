@@ -247,19 +247,21 @@ void load_ini(dictionary *ini)
 	
 	char *telemetry_type_char;
 	telemetry_type_char = iniparser_getstring(ini, "osd:type", NULL);
-	if (strcmp(telemetry_type_char, "ltm") && strcmp(telemetry_type_char, "LTM")) {
+	if (0 == strcmp(telemetry_type_char, "ltm")) {
 		i_telemetry_type = LTM;
-	} else if (strcmp(telemetry_type_char, "MAVLINK") && strcmp(telemetry_type_char, "mavlink")) {
+	} else if (0 == strcmp(telemetry_type_char, "mavlink")) {
 		i_telemetry_type = MAVLINK;
-	} else if (strcmp(telemetry_type_char, "FRSKY") && strcmp(telemetry_type_char, "frsky")) {
+	} else if (0 == strcmp(telemetry_type_char, "frsky")) {
 		i_telemetry_type = FRSKY;
-	} else if (strcmp(telemetry_type_char, "SMARTPORT") && strcmp(telemetry_type_char, "smartport")) {
+	} else if (0 == strcmp(telemetry_type_char, "smartport")) {
 		i_telemetry_type = SMARTPORT;
 	} else {
 		fprintf(stderr, "Unknown telemetry type: %s", telemetry_type_char);
 		iniparser_freedict(ini);
 		exit(EXIT_FAILURE);
 	}
+	
+	fprintf(stderr, "Telemetry type: %d", i_telemetry_type);
 	
 	return;
 }
