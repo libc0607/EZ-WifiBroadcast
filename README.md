@@ -9,3 +9,5 @@ emmmm.... Under development.
   
 OpenWrt code at [libc0607/lede:air](https://github.com/libc0607/lede/tree/air)  
 OpenWrt packages at [libc0607/yjsnpi-broadcast-openwrt](https://github.com/libc0607/yjsnpi-broadcast-openwrt)  
+  
+Test firmware download at [Telegram channel: YJSNPI-Broadcast Firmware release](https://t.me/yjsnpi_broadcast)  
