@@ -7,7 +7,7 @@ if [[ "$OPENWRT_VIDEO_FORWARD_PORT" == "null" ]] || [[ "$OPENWRT_VIDEO_FORWARD_P
 	echo $$ > $1
 	exit
 fi
-socat -u EXEC:"raspivid -w $OPENWRT_VIDEO_WIDTH -h $OPENWRT_VIDEO_HEIGHT -fps $OPENWRT_VIDEO_FPS -b $OPENWRT_VIDEO_BITRATE -g $OPENWRT_VIDEO_KEYFRAMERATE -t 0 -cd H264 -n -fl -ih -pf high -if both -ex sports -mm average -awb horizon -o -" UDP:$OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT,sourceport=30000 >/dev/null 2>&1 & 
+socat -u EXEC:"raspivid -w $OPENWRT_VIDEO_WIDTH -h $OPENWRT_VIDEO_HEIGHT -fps $OPENWRT_VIDEO_FPS -b $OPENWRT_VIDEO_BITRATE -g $OPENWRT_VIDEO_KEYFRAMERATE -t 0 $OPENWRT_VIDEO_EXTRAPARAMS -o -" UDP:$OPENWRT_IP:$OPENWRT_VIDEO_FORWARD_PORT,sourceport=30000 >/dev/null 2>&1 & 
 echo $! > $1
 
 
