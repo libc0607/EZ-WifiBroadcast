@@ -15,7 +15,7 @@ OPENWRT_VIDEO_KEYFRAMERATE=`cat /var/run/wbc/config.ini|grep video_keyframerate|
 OPENWRT_VIDEO_WIDTH=`cat /var/run/wbc/config.ini|grep video_size |cut -d '=' -f 2|cut -d 'x' -f 1`
 OPENWRT_VIDEO_HEIGHT=`cat /var/run/wbc/config.ini|grep video_size|cut -d '=' -f 2|cut -d 'x' -f 2`
 OPENWRT_VIDEO_BITRATE=`cat /var/run/wbc/config.ini|grep video_bitrate|cut -d '=' -f 2`
-OPENWRT_VIDEO_EXTRAPARAMS=`cat /var/run/wbc/config.ini|grep extraparams|cut -d '=' -f 2`
+OPENWRT_VIDEO_EXTRAPARAMS=`cat /var/run/wbc/config.ini|grep video_extraparams|cut -d '=' -f 2`
 
 # save them to file
 echo "#!/bin/bash" > $OPENWRT_CONFIG_FILE
