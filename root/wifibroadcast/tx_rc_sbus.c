@@ -162,9 +162,9 @@ static const unsigned int crc32_table[] =
   0xafb010b1, 0xab710d06, 0xa6322bdf, 0xa2f33668,
   0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4
 };
-static const uint32_t crc_magic = 0x11451419;	// 810!
-static const uint8_t framedata_body_length = sizeof(framedata) -16;	// now is 38, const
-static const uint8_t framedata_radiotap_header[16] = {
+
+uint8_t framedata_body_length = sizeof(framedata) -16;	// now is 38, const
+uint8_t framedata_radiotap_header[16] = {
 	0, 0, 12, 0, 4, 128, 0, 0, 
 	24, 0, 0, 0, 180, 191, 0, 0
 };
@@ -191,11 +191,12 @@ unsigned int xcrc32 (const unsigned char *buf, int len, unsigned int init)
 	return crc;
 }
 
-static int open_sock (char *ifname) 
+int open_sock (char *ifname) 
 {
     struct sockaddr_ll ll_addr;
     struct ifreq ifr;
-
+	int sock;
+	
     sock = socket (AF_PACKET, SOCK_RAW, 0);
     if (sock == -1) {
 		fprintf(stderr, "Error:\tSocket failed\n");
@@ -230,11 +231,15 @@ static int open_sock (char *ifname)
     return sock;
 }
 
-void fill_frame(uint32_t seqno) {
+void fill_frame(uint32_t seqno) 
+{
+	uint32_t crc_magic = htonl(0x11451419);	// 810!
 	framedata.seqnumber = htonl(seqno);
 	// Calculate CRC32 
-	framedata.crc = htonl(crc_magic);
-	framedata.crc = htonl( xcrc32( (&framedata)+16, (int)framedata_body_length, crc32_startvalue) );
+	//framedata.crc = htonl(crc_magic);
+	memcpy(((uint8_t *)&framedata)+16, &crc_magic, sizeof(crc_magic));
+	uint32_t crc_calculated = htonl( xcrc32( ((uint8_t *)&framedata)+16, (int)framedata_body_length, crc32_startvalue) );
+	memcpy(((uint8_t *)&framedata)+16, &crc_calculated, sizeof(crc_calculated));
 }
 
 wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open (void) 
@@ -293,20 +298,21 @@ void set_baud_custom (int fd, int speed)
 
 uint8_t bitrate_to_rtap8 (int bitrate) 
 {
+	uint8_t ret;
 	switch (bitrate) {
-		case  1: framedata[8]=0x02; break;
-		case  2: framedata[8]=0x04; break;
-		case  5: framedata[8]=0x0b; break;
-		case  6: framedata[8]=0x0c; break;
-		case 11: framedata[8]=0x16; break;
-		case 12: framedata[8]=0x18; break;
-		case 18: framedata[8]=0x24; break;
-		case 24: framedata[8]=0x30; break;
-		case 36: framedata[8]=0x48; break;
-		case 48: framedata[8]=0x60; break;
+		case  1: ret=0x02; break;
+		case  2: ret=0x04; break;
+		case  5: ret=0x0b; break;
+		case  6: ret=0x0c; break;
+		case 11: ret=0x16; break;
+		case 12: ret=0x18; break;
+		case 18: ret=0x24; break;
+		case 24: ret=0x30; break;
+		case 36: ret=0x48; break;
+		case 48: ret=0x60; break;
 		default: fprintf(stderr, "ERROR: Wrong or no data rate specified\n"); exit(1); break;
 	}
-
+	return ret;
 }
 
 void dump_memory(void* p, int length, char * tag)
@@ -355,8 +361,9 @@ int main (int argc, char *argv[])
 	int param_bitrate = iniparser_getint(ini, "tx_rc_sbus:bitrate", 0);
 	int param_debug = iniparser_getint(ini, "tx_rc_sbus:debug", 0); 
 	// init wifi raw socket
-	if (param_mode == 0 || paran_mode == 2) {
-		sockfd = open_sock(iniparser_getstring(ini, "tx_rc_sbus:nic", NULL));
+	if (param_mode == 0 || param_mode == 2) {
+		char * nic_name = iniparser_getstring(ini, "tx_rc_sbus:nic", NULL);
+		sockfd = open_sock(nic_name);
 		usleep(20000); // wait a bit 
 	}
 	
@@ -365,7 +372,7 @@ int main (int argc, char *argv[])
 	struct sockaddr_in send_addr;
 	struct sockaddr_in source_addr;	
 	int slen = sizeof(send_addr);
-	if (param_mode == 1 || paran_mode == 2) {
+	if (param_mode == 1 || param_mode == 2) {
 		port = atoi(iniparser_getstring(ini, "tx_rc_sbus:udp_port", NULL));
 		bzero(&send_addr, sizeof(send_addr));
 		send_addr.sin_family = AF_INET;
@@ -419,7 +426,8 @@ int main (int argc, char *argv[])
 	// Copy header to framedata
 	memcpy(&framedata, framedata_radiotap_header, 16);
 	// Set bitrate
-	framedata[8] = bitrate_to_rtap8(param_bitrate);
+	uint8_t * p_fdata = (uint8_t *)&framedata;
+	p_fdata[8] = bitrate_to_rtap8(param_bitrate);
 	// set length
 	framedata.length = framedata_body_length;
 	
@@ -431,7 +439,7 @@ int main (int argc, char *argv[])
 		// Get data from UART
 		uart_read_len = read(uartfd, (&framedata)+16+13, 25);
 		if (param_debug) {
-			fprintf(stderr, "uart read() got %d bytes\n");
+			fprintf(stderr, "uart read() got %d bytes\n", uart_read_len);
 			dump_memory((&framedata)+16+13, uart_read_len, "uart read");
 		}
 		if (uart_read_len == 0)
