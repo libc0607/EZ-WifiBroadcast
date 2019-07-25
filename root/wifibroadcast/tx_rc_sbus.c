@@ -41,9 +41,6 @@ retrans=2
 #include <unistd.h>
 #include "lib.h"
 
-
-char *ifname = NULL;
-int sock = 0;
 int sockfd;
 int uartfd;
 int udpfd;
@@ -82,20 +79,16 @@ struct framedata_s
 /* 	
 framedata.rt1 = 0; // <-- radiotap version
 framedata.rt2 = 0; // <-- radiotap version
-
 framedata.rt3 = 12; // <- radiotap header length
 framedata.rt4 = 0; // <- radiotap header length
-
 framedata.rt5 = 4; // <-- radiotap present flags 00000100 10000000 00000000 00000000
 framedata.rt6 = 128; // <-- radiotap present flags
 framedata.rt7 = 0; // <-- radiotap present flags
 framedata.rt8 = 0; // <-- radiotap present flags
-
 framedata.rt9 = 24; // <-- radiotap rate
 framedata.rt10 = 0; // <-- radiotap stuff
 framedata.rt11 = 0; // <-- radiotap stuff
 framedata.rt12 = 0; // <-- radiotap stuff
-
 framedata.fc1 = 180; // <-- frame control field (0xb4)	// fc1 & fc2
 framedata.fc2 = 191; // <-- frame control field (0xbf)	// used in pcap filter
 framedata.dur1 = 0; // <-- duration
@@ -237,19 +230,11 @@ static int open_sock (char *ifname)
     return sock;
 }
 
-void send_rc(uint32_t seqno, telemetry_data_t *td) 
-{
-	framedata.seqnumber = seqno;
-    if (td->rx_status != NULL) {
-		// Calculate CRC32 
-		framedata.crc = crc_magic;
-		framedata.crc = htonl( xcrc32( (&framedata)+16, (int)framedata_body_length, crc32_startvalue) );
-		if ( write(sockfd, &framedata, sizeof(framedata)) < 0 ) {
-			fprintf(stderr, "injection failed, seqno=%d\n", seqno);	// send failed
-		}
-    } else {
-		printf ("ERROR: Could not open rx status memory!");
-    }
+void fill_frame(uint32_t seqno) {
+	framedata.seqnumber = htonl(seqno);
+	// Calculate CRC32 
+	framedata.crc = htonl(crc_magic);
+	framedata.crc = htonl( xcrc32( (&framedata)+16, (int)framedata_body_length, crc32_startvalue) );
 }
 
 wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open (void) 
@@ -379,7 +364,7 @@ int main (int argc, char *argv[])
 	int16_t port;
 	struct sockaddr_in send_addr;
 	struct sockaddr_in source_addr;	
-	int sockfd, slen = sizeof(send_addr);
+	int slen = sizeof(send_addr);
 	if (param_mode == 1 || paran_mode == 2) {
 		port = atoi(iniparser_getstring(ini, "tx_rc_sbus:udp_port", NULL));
 		bzero(&send_addr, sizeof(send_addr));
@@ -402,6 +387,9 @@ int main (int argc, char *argv[])
 	// set uart to b100000: See https://github.com/cbrake/linux-serial-test
 	uartfd = open( iniparser_getstring(ini, "tx_rc_sbus:uart", NULL),
 					O_RDWR|O_NOCTTY|O_NDELAY);						// not using |O_NONBLOCK now
+	if (uartfd < 0) {
+		fprintf(stderr, "open uart failed!\n"); 
+	}
 	if (fcntl(uartfd, F_SETFL, 0) < 0) {
 		fprintf(stderr, "fcntl F_SETFL failed!\n"); 
 	} else {
@@ -452,10 +440,14 @@ int main (int argc, char *argv[])
 			fprintf(stderr, "uart read() got an error\n");
 			continue;
 		}
+		// fill frame crc & seqno
+		fill_frame(seqno);
 		// Send frame to air
 		if (param_mode == 0 || param_mode == 2) {
 			for (k = 0; k < param_retrans; k++) {
-				send_rc(seqno, &td);
+				if ( write(sockfd, &framedata, sizeof(framedata)) < 0 ) {
+					fprintf(stderr, "injection failed, seqno=%d\n", seqno);	// send failed
+				}
 				usleep(2000); // wait 2ms between sending multiple frames to lower collision probability
 			}
 		}
