@@ -67,3 +67,7 @@ install (TARGETS rx_rc_sbus DESTINATION bin)
 add_executable(tx_rc_sbus tx_rc_sbus.c lib.c)
 target_link_libraries(tx_rc_sbus rt pcap iniparser)
 install (TARGETS tx_rc_sbus DESTINATION bin)
+
+add_executable(tx_test tx_test.c)
+target_link_libraries(tx_test rt pcap)
+install (TARGETS tx_test DESTINATION bin)
