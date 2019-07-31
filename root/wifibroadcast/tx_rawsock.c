@@ -14,31 +14,31 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/resource.h>
 #include "fec.h"
 #include "lib.h"
 #include "wifibroadcast.h"
-#include <netpacket/packet.h>
-#include <net/if.h>
-#include <netinet/ether.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <termios.h>
-#include <stdint.h>
-#include <sys/ioctl.h>
-#include <getopt.h>
-#include <iniparser.h>
-#include <sys/mman.h>
 #include <arpa/inet.h>
 #include <endian.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <iniparser.h>
+#include <net/if.h>
+#include <netinet/ether.h>
+#include <netpacket/packet.h>
 #include <resolv.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <time.h>
+#include <unistd.h>
 #include <utime.h>
 
 #define MAX_PACKET_LENGTH 4192
@@ -123,6 +123,16 @@ static u8 u8aRadiotapHeader[] = {
 	0x00, 0x00 // ??
 };
 
+static u8 u8aRadiotapHeader80211n[] = {
+	0x00, 0x00, // <-- radiotap version
+	0x0c, 0x00, // <- radiotap header length
+	0x00, 0x80, 0x08, 0x00, // <-- radiotap present flags (tx flags, mcs)
+	0x00, 0x00, 	// tx-flag
+	0x07, 			// mcs have: bw, gi, fec: 					 8'b00010111
+	0x00,			// mcs: 20MHz bw, long guard interval, ldpc, 8'b00010000
+	0x02,			// mcs index 2 (speed level, will be overwritten later)
+};
+
 static u8 u8aIeeeHeader_data_short[] = {
 	0x08, 0x01, 0x00, 0x00, // frame control field (2bytes), duration (2 bytes)
 	0xff // port =  1st byte of IEEE802.11 RA (mac) must be something odd (wifi hardware determines broadcast/multicast through odd/even check)
@@ -154,7 +164,10 @@ void usage(void) {
 		"\tfecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
 		"\tpacketsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
 		"\tframetype=0        # Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
-		"\trate=6             # Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
+		"\twifimode=g		  # Wi-Fi mode. g=802.11g n=802.11n"
+		"\tldpc=0		      # 1-Use LDPC encode, 0-default"
+		"\trate=6             # When wifimode=g, data rate to send frames with. Choose 1,2,5,6,11,12,18,24,36 Mbit\n"
+		"\t                   # When wifimode=n, mcs index\n"
 		"\tmode=0             # Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
 		"\tnic=wlan0          # Wi-Fi interface\n"
 		, 1024, MAX_USER_PACKET_LENGTH
@@ -169,7 +182,7 @@ void usage(void) {
 	"-m <bytes>  Minimum number of bytes per frame (default: 28)\n"
 	"-p <port>   Port number 0-127 (default 0)\n"
 	"-t <type>   Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
-	"-d <rate>   Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
+	"-d <rate>   Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36,48 Mbit\n"
 	"-y <mode>   Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
         "\n"
         "Example:\n"
@@ -192,50 +205,55 @@ long long current_timestamp() {
     return useconds;
 }
 
-int packet_header_init(uint8_t *packet_header, int type, int rate, int port) {
+/* 
+packet_header: buffer
+type: 0-datashort, 1-data, 2-rts	
+mode: 0-802.11g, 1-802.11n, 2-802.11n with ldpc
+rate: 1,2,5,6,11,12,18,24,36,48 when mode=0
+	  0,1,2,3,4,5,6,7 when mode=1 or 2
+port: port
+*/
+int packet_header_init(uint8_t *packet_header, int type, int mode, int rate, int port) 
+{
 	u8 *pu8 = packet_header;
 
 	int port_encoded = 0;
-
-	switch (rate) {
-	    case 1:
-		u8aRadiotapHeader[8]=0x02;
-		break;
-	    case 2:
-		u8aRadiotapHeader[8]=0x04;
-		break;
-	    case 5: // 5.5
-		u8aRadiotapHeader[8]=0x0b;
-		break;
-	    case 6:
-		u8aRadiotapHeader[8]=0x0c;
-		break;
-	    case 11:
-		u8aRadiotapHeader[8]=0x16;
-		break;
-	    case 12:
-		u8aRadiotapHeader[8]=0x18;
-		break;
-	    case 18:
-		u8aRadiotapHeader[8]=0x24;
-		break;
-	    case 24:
-		u8aRadiotapHeader[8]=0x30;
-		break;
-	    case 36:
-		u8aRadiotapHeader[8]=0x48;
-		break;
-	    case 48:
-		u8aRadiotapHeader[8]=0x60;
-		break;
-	    default:
-		fprintf(stderr, "ERROR: Wrong or no data rate specified (see -d parameter)\n");
-		exit(1);
-		break;
+	if (mode == 0) {	// 802.11g
+		switch (rate) {
+			case 1:  u8aRadiotapHeader[8]=0x02; break;
+			case 2:  u8aRadiotapHeader[8]=0x04; break;
+			case 5:  u8aRadiotapHeader[8]=0x0b; break;
+			case 6:  u8aRadiotapHeader[8]=0x0c; break;
+			case 11: u8aRadiotapHeader[8]=0x16; break;
+			case 12: u8aRadiotapHeader[8]=0x18; break;
+			case 18: u8aRadiotapHeader[8]=0x24; break;
+			case 24: u8aRadiotapHeader[8]=0x30; break;
+			case 36: u8aRadiotapHeader[8]=0x48; break;
+			case 48: u8aRadiotapHeader[8]=0x60; break;
+			default:
+				fprintf(stderr, "ERROR: Wrong or no data rate specified (see -d parameter)\n");
+				exit(1);
+			break;
+		}
+	} else if (mode == 2) {					// 802.11n + ldpc
+		u8aRadiotapHeader80211n[10] |= 0x10;
+		u8aRadiotapHeader80211n[11] |= 0x10;
+		u8aRadiotapHeader80211n[12] = (uint8_t)rate;
+	} else if (mode == 1) {					// 802.11n
+		u8aRadiotapHeader80211n[10] &= (~0x10);
+		u8aRadiotapHeader80211n[11] &= (~0x10);
+		u8aRadiotapHeader80211n[12] = (uint8_t)rate;
 	}
 
-	memcpy(packet_header, u8aRadiotapHeader, sizeof(u8aRadiotapHeader));
-	pu8 += sizeof(u8aRadiotapHeader);
+	// copy to buf
+	if (mode == 0) {
+		memcpy(packet_header, u8aRadiotapHeader, sizeof(u8aRadiotapHeader));
+		pu8 += sizeof(u8aRadiotapHeader);
+	} else if (mode == 1 || mode == 2) {
+		memcpy(packet_header, u8aRadiotapHeader80211n, sizeof(u8aRadiotapHeader80211n));
+		pu8 += sizeof(u8aRadiotapHeader80211n);
+	}
+
 
 	switch (type) {
 	case 0: // short DATA frame
@@ -500,6 +518,7 @@ int main(int argc, char *argv[]) {
     int param_packet_type = 1;
     int param_data_rate = 18;
     int param_transmission_mode = 0;
+	int param_wifi_mode = 0;
 
 	struct sockaddr_in udp_addr;
 	int udp_sockfd;
@@ -525,6 +544,17 @@ int main(int argc, char *argv[]) {
 	param_packet_type = iniparser_getint(ini, "tx:frametype", 0);
 	param_data_rate = iniparser_getint(ini, "tx:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx:mode", 0);
+	if (0 == strcmp(iniparser_getstring(ini, "tx:wifimode", NULL), "g")) {
+		param_wifi_mode = 0;
+	} else if (0 == strcmp(iniparser_getstring(ini, "tx:wifimode", NULL), "n")) {
+		if (iniparser_getint(ini, "tx:ldpc", 0) == 0) {
+			param_wifi_mode = 1;
+		} else if (iniparser_getint(ini, "tx:ldpc", 0) == 1) {
+			param_wifi_mode = 2;
+		}
+	} 
+		
+	
 	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, mode %d, nic %s, UDP :%d, buf %d\n",
 		argv[0], param_data_packets_per_block, param_fec_packets_per_block, param_packet_length,
 		param_port, param_packet_type, param_data_rate, param_transmission_mode,
@@ -565,7 +595,7 @@ int main(int argc, char *argv[]) {
 
 	
 
-    packet_header_length = packet_header_init(packet_transmit_buffer, param_packet_type, param_data_rate, param_port);
+    packet_header_length = packet_header_init(packet_transmit_buffer, param_packet_type, param_wifi_mode, param_data_rate, param_port);
 
     input.fd = STDIN_FILENO;	
 	//input.fd = udp_sockfd;	// udp mod
