@@ -148,7 +148,7 @@ void usage(void) {
 	"config.ini example:\n"
 	"\t[tx_telemetry]\n"
 	"\tport=1             	# Port number 0-127 (default 1)\n"
-	"\tcts_protection=false	# CTS protection disabled / CTS protection enabled (Atheros only)\n"
+	"\tcts_protection=0	# CTS protection disabled / CTS protection enabled (Atheros only)\n"
 	"\retrans_count=2       # Retransmission count. 1 = send each frame once, 2 = twice, 3 = three times ... Default = 1\n"
 	"\ttele_protocol=1   	# Telemetry protocol to be used. 0 = Mavlink. 1 = generic (for all others)\n"
 	"\trate=6             	# Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
