@@ -13,26 +13,27 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/resource.h>
 #include "lib.h"
-#include <netpacket/packet.h>
+#include "mavlink/common/mavlink.h"
+#include <fcntl.h>
+#include <getopt.h>
+#include <iniparser.h>
 #include <net/if.h>
 #include <netinet/ether.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <termios.h>
+#include <netpacket/packet.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
-#include <getopt.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <time.h>
+#include <unistd.h>
 //#include <arpa/inet.h>
-#include "mavlink/common/mavlink.h"
-#include <iniparser.h>
+
 int sock = 0;
 int socks[5];
 int type[5];
@@ -112,6 +113,16 @@ static u8 u8aRadiotapHeader[] = {
         0x00, 0x00
 };
 
+static u8 u8aRadiotapHeader80211n[] = {
+	0x00, 0x00, // <-- radiotap version
+	0x0c, 0x00, // <- radiotap header length
+	0x00, 0x80, 0x08, 0x00, // <-- radiotap present flags (tx flags, mcs)
+	0x00, 0x00, 	// tx-flag
+	0x07, 			// mcs have: bw, gi, fec: 					 8'b00010111
+	0x00,			// mcs: 20MHz bw, long guard interval, ldpc, 8'b00010000
+	0x02,			// mcs index 2 (speed level, will be overwritten later)
+};
+
 static u8 u8aIeeeHeader_data[] = {
         0x08, 0x02, 0x00, 0x00, // frame control field (2 bytes), duration (2 bytes)
         0xff, 0x00, 0x00, 0x00, 0x00, 0x00,// 1st byte of MAC will be overwritten with encoded port
@@ -146,14 +157,18 @@ void usage(void) {
 	"Usage: tx_telemetry <config.ini>\n"
 	"\n"
 	"config.ini example:\n"
-	"\t[tx_telemetry]\n"
-	"\tport=1             	# Port number 0-127 (default 1)\n"
-	"\tcts_protection=0	# CTS protection disabled / CTS protection enabled (Atheros only)\n"
-	"\retrans_count=2       # Retransmission count. 1 = send each frame once, 2 = twice, 3 = three times ... Default = 1\n"
-	"\ttele_protocol=1   	# Telemetry protocol to be used. 0 = Mavlink. 1 = generic (for all others)\n"
-	"\trate=6             	# Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
-	"\tmode=0             	# Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
-	"\tnic=wlan0          	# Wi-Fi interface\n"
+	"\n"
+	"[tx_telemetry]\n"
+	"port=1             	# Port number 0-127 (default 1)\n"
+	"cts_protection=0		# CTS protection disabled / CTS protection enabled (Atheros only)\n"
+	"retrans_count=2       	# Retransmission count. 1 = send each frame once, 2 = twice, 3 = three times ... Default = 1\n"
+	"tele_protocol=1   		# Telemetry protocol to be used. 0 = Mavlink. 1 = generic (for all others)\n"
+	"wifimode=g		    	# Wi-Fi mode. g=802.11g n=802.11n"
+	"ldpc=0		        	# 1-Use LDPC encode, 0-default. Experimental. Only valid when wifimode=n and both your Wi-Fi cards support LDPC."
+	"rate=6             	# Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
+	"mode=0             	# Transmission mode, not used. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
+	"nic=wlan0          	# Wi-Fi interface\n"
+	""
 	);
     exit(1);
 }
@@ -277,9 +292,11 @@ int main(int argc, char *argv[]) {
     int param_port = 1;
     int param_retransmissions = 1;
     int param_telemetry_protocol = 0;
-    int param_data_rate = 12;
+    int param_data_rate = 6;
     int param_transmission_mode = 0;
     int param_debug = 0;
+	int param_wifimode = 0;
+	int param_ldpc = 0;
 
     uint8_t buf[402]; // data read from stdin
     uint8_t mavlink_message[263];
@@ -288,6 +305,7 @@ int main(int argc, char *argv[]) {
     uint32_t seqno = 0;
 
     fprintf(stdout,"tx_telemetry (c)2017 by Rodizio. Based on wifibroadcast tx by Befinitiv. GPL2 licensed.\n");
+	fprintf(stdout, "Dirty mod by @libc0607\n");
 
 	char *file = argv[1];
 	dictionary *ini = iniparser_load(file);
@@ -304,7 +322,9 @@ int main(int argc, char *argv[]) {
 	param_telemetry_protocol = iniparser_getint(ini, "tx_telemetry:tele_protocol", 0);
 	param_data_rate = iniparser_getint(ini, "tx_telemetry:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx_telemetry:mode", 0);
-
+	param_wifimode = (0 == strcmp("g", iniparser_getstring(ini, "tx_telemetry:wifimode", NULL)))? 0: 1;
+	param_ldpc = iniparser_getint(ini, "tx_telemetry:ldpc", 0);
+	
 	fprintf(stderr, "%s Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, nic %s\n",
 			argv[0], param_cts, param_port, param_retransmissions, param_telemetry_protocol,
 			param_data_rate, param_transmission_mode, iniparser_getstring(ini, "tx_telemetry:nic", NULL)
@@ -312,7 +332,6 @@ int main(int argc, char *argv[]) {
     int x = optind;
     int num_interfaces = 0;
 
-//    while(x < argc && num_interfaces < 5) {
 	
 	// ini supports only support one interface now
 	// should be fixed later
@@ -324,7 +343,7 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 	fgets(line, 100, procfile); // read the first line
-//	fgets(line, 100, procfile); // read the 2nd line
+
 	if (strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
 		fprintf(stderr, "tx_telemetry: Atheros card detected\n");
 		type[num_interfaces] = 0;
@@ -337,49 +356,32 @@ int main(int argc, char *argv[]) {
 	++x;
 	fclose(procfile);
 	usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
-//    }
+
 
     // initialize telemetry shared mem for rssi based transmission (-y 1)
     telemetry_data_t td;
     telemetry_init(&td);
+	
+	// Set bitrate
+	if (param_wifimode == 0) {
+		switch (param_data_rate) {
+			case 1:  u8aRadiotapHeader[8]=0x02; break;
+			case 2:  u8aRadiotapHeader[8]=0x04; break;
+			case 5:  u8aRadiotapHeader[8]=0x0b; break;
+			case 6:  u8aRadiotapHeader[8]=0x0c; break;
+			case 11: u8aRadiotapHeader[8]=0x16; break;
+			case 12: u8aRadiotapHeader[8]=0x18; break;
+			case 18: u8aRadiotapHeader[8]=0x24; break;
+			case 24: u8aRadiotapHeader[8]=0x30; break;
+			case 36: u8aRadiotapHeader[8]=0x48; break;
+			case 48: u8aRadiotapHeader[8]=0x60; break;
+			default: fprintf(stderr, "tx_telemetry: ERROR: Wrong or no data rate specified\n"); exit(1); break;
+		}
+	} else if (param_wifimode == 1) {
+		u8aRadiotapHeader80211n[12] = (uint8_t) param_data_rate;
+	}
 
-    switch (param_data_rate) {
-        case 1:
-            u8aRadiotapHeader[8]=0x02;
-            break;
-        case 2:
-            u8aRadiotapHeader[8]=0x04;
-            break;
-        case 5: // 5.5
-            u8aRadiotapHeader[8]=0x0b;
-            break;
-        case 6:
-            u8aRadiotapHeader[8]=0x0c;
-            break;
-        case 11:
-            u8aRadiotapHeader[8]=0x16;
-            break;
-        case 12:
-            u8aRadiotapHeader[8]=0x18;
-            break;
-        case 18:
-            u8aRadiotapHeader[8]=0x24;
-            break;
-        case 24:
-            u8aRadiotapHeader[8]=0x30;
-            break;
-        case 36:
-            u8aRadiotapHeader[8]=0x48;
-            break;
-        case 48:
-            u8aRadiotapHeader[8]=0x60;
-            break;
-        default:
-            fprintf(stderr, "tx_telemetry: ERROR: Wrong or no data rate specified (see -d parameter)\n");
-            exit(1);
-            break;
-    }
-
+	// Set port
     port_encoded = (param_port * 2) + 1;
     u8aIeeeHeader_rts[4] = port_encoded;
     u8aIeeeHeader_data[4] = port_encoded;
@@ -387,19 +389,34 @@ int main(int argc, char *argv[]) {
 
     // for Atheros use data frames if CTS protection enabled or rts if disabled
     // CTS protection causes R/C transmission to stop for some reason, always use rts frames (i.e. no cts protection)
-    //param_cts = 0;
+	
+	int rtheader_length = 0;
+	if (param_wifimode == 0) {	// 802.11g
+		memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
+		memcpy(headers_ralink, u8aRadiotapHeader, sizeof(u8aRadiotapHeader));// radiotap header
+		rtheader_length = sizeof(u8aRadiotapHeader);
+	} else if (param_wifimode == 1) {	// 802.11n
+		if (param_ldpc == 0) {
+			u8aRadiotapHeader80211n[10] &= (~0x10);
+			u8aRadiotapHeader80211n[11] &= (~0x10);
+		} else if (param_ldpc == 1){
+			u8aRadiotapHeader80211n[10] |= 0x10;
+			u8aRadiotapHeader80211n[11] |= 0x10;
+		}
+		memcpy(headers_atheros, u8aRadiotapHeader80211n, sizeof(u8aRadiotapHeader80211n)); // radiotap header
+		memcpy(headers_ralink, u8aRadiotapHeader80211n, sizeof(u8aRadiotapHeader80211n));// radiotap header
+		rtheader_length = sizeof(u8aRadiotapHeader80211n);
+	}
+	
     if (param_cts == 1) { // use data frames
-		memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
-		memcpy(headers_atheros + sizeof(u8aRadiotapHeader), u8aIeeeHeader_data, sizeof(u8aIeeeHeader_data)); // ieee header
-		headers_atheros_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_data);
+		memcpy(headers_atheros + rtheader_length, u8aIeeeHeader_data, sizeof(u8aIeeeHeader_data)); // ieee header
+		headers_atheros_len = rtheader_length + sizeof(u8aIeeeHeader_data);
     } else { // use rts frames
-		memcpy(headers_atheros, u8aRadiotapHeader, sizeof(u8aRadiotapHeader)); // radiotap header
-		memcpy(headers_atheros + sizeof(u8aRadiotapHeader), u8aIeeeHeader_rts, sizeof(u8aIeeeHeader_rts)); // ieee header
-		headers_atheros_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_rts);
+		memcpy(headers_atheros + rtheader_length, u8aIeeeHeader_rts, sizeof(u8aIeeeHeader_rts)); // ieee header
+		headers_atheros_len = rtheader_length + sizeof(u8aIeeeHeader_rts);
     }
 
     // for Ralink always use data short
-    memcpy(headers_ralink, u8aRadiotapHeader, sizeof(u8aRadiotapHeader));// radiotap header
     memcpy(headers_ralink + sizeof(u8aRadiotapHeader), u8aIeeeHeader_data_short, sizeof(u8aIeeeHeader_data_short));// ieee header
     headers_ralink_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_data_short);
 
