@@ -71,3 +71,11 @@ install (TARGETS tx_rc_sbus DESTINATION bin)
 add_executable(tx_test tx_test.c)
 target_link_libraries(tx_test rt pcap)
 install (TARGETS tx_test DESTINATION bin)
+
+add_executable(sysair_forward  sysair_forward.c )
+target_link_libraries(sysair_forward rt pcap iniparser)
+install (TARGETS sysair_forward DESTINATION bin)
+
+add_executable(sysair_forward_in  sysair_forward_in.c )
+target_link_libraries(sysair_forward_in rt pcap iniparser)
+install (TARGETS sysair_forward_in DESTINATION bin)
