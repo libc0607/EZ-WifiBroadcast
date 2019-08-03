@@ -474,7 +474,6 @@ int main(int argc, char *argv[])
 
 	struct timeval to;
 	for(;;) {
-
 	    to.tv_sec = 0;
 	    to.tv_usec = 1e5; // 100ms timeout
 	    fd_set readset;

@@ -79,16 +79,26 @@ struct framedata_s
 /* 	
 framedata.rt1 = 0; // <-- radiotap version
 framedata.rt2 = 0; // <-- radiotap version
+
 framedata.rt3 = 12; // <- radiotap header length
 framedata.rt4 = 0; // <- radiotap header length
-framedata.rt5 = 4; // <-- radiotap present flags 00000100 10000000 00000000 00000000
+
+framedata.rt5 = 4; // <-- radiotap present flags 
 framedata.rt6 = 128; // <-- radiotap present flags
 framedata.rt7 = 0; // <-- radiotap present flags
 framedata.rt8 = 0; // <-- radiotap present flags
-framedata.rt9 = 24; // <-- radiotap rate
+// 00000100 10000000 00000000 00000000 
+// (le)0x04800000
+// (be)0x00008004
+// 00000000 00000000 10000000 00000100
+// ........ ........ ........ .....1..  Rate: Present (1 byte)
+// ........ ........ 1....... ........ 	TX-Flags: Present
+
+framedata.rt9 = 24; // <-- radiotap rate (500khz units)
 framedata.rt10 = 0; // <-- radiotap stuff
 framedata.rt11 = 0; // <-- radiotap stuff
 framedata.rt12 = 0; // <-- radiotap stuff
+
 framedata.fc1 = 180; // <-- frame control field (0xb4)	// fc1 & fc2
 framedata.fc2 = 191; // <-- frame control field (0xbf)	// used in pcap filter
 framedata.dur1 = 0; // <-- duration
