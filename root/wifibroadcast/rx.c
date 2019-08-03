@@ -36,11 +36,12 @@
 typedef struct  {
 	int m_nChannel;
 	int m_nChannelFlags;
+	int m_n80211mode;		// 802.11 0-abg / 1-n /2-ac
 	int m_nRate;
+	int m_nMCSIndex;		// 802.11n only
 	int m_nAntenna;
 	int m_nRadiotapFlags;
 } __attribute__((packed)) PENUMBRA_RADIOTAP_DATA;
-
 
 int flagHelp = 0;
 int param_port = 0;
@@ -103,7 +104,7 @@ void usage(void) {
 		"\tdatanum=8          # Number of data packets in a block (default 8). Needs to match with rx\n"
 		"\tfecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
 		"\tpacketsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
-		"\tbufsize=1           # Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
+		"\tbufsize=1          # Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
 		"\tnic=wlan0          # Wi-Fi interface\n"
 		, 1024, MAX_USER_PACKET_LENGTH
 	);
@@ -121,8 +122,8 @@ typedef struct {
 	packet_buffer_t *packet_buffer_list;
 } block_buffer_t;
 
-
-void open_and_configure_interface(const char *name, int port, monitor_interface_t *interface) {
+void open_and_configure_interface(const char *name, int port, monitor_interface_t *interface) 
+{
 	struct bpf_program bpfprogram;
 	char szProgram[512];
 	char szErrbuf[PCAP_ERRBUF_SIZE];
@@ -174,8 +175,9 @@ void open_and_configure_interface(const char *name, int port, monitor_interface_
 	interface->selectable_fd = pcap_get_selectable_fd(interface->ppcap);
 }
 
-
-void block_buffer_list_reset(block_buffer_t *block_buffer_list, size_t block_buffer_list_len, int block_buffer_len) {
+void block_buffer_list_reset(block_buffer_t *block_buffer_list, size_t block_buffer_list_len, 
+																		int block_buffer_len) 
+{
     int i;
     block_buffer_t *rb = block_buffer_list;
 
@@ -193,7 +195,9 @@ void block_buffer_list_reset(block_buffer_t *block_buffer_list, size_t block_buf
     }
 }
 
-void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buffer_t *block_buffer_list, int adapter_no) {
+void process_payload(uint8_t *data, size_t data_len, int crc_correct, 
+								block_buffer_t *block_buffer_list, int adapter_no) 
+{
     wifi_packet_header_t *wph;
     int block_num;
     int packet_num;
@@ -421,7 +425,6 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct, block_buff
 
 }
 
-
 void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer_list, 
 																	int adapter_no) 
 {
@@ -453,10 +456,12 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 		return;
 	}
 
-	// fetch radiotap header length from radiotap header (seems to be 36 for Atheros and 18 for Ralink)
+	// fetch radiotap header length from radiotap header 
+	// 36 for Atheros 802.11g, 39 for Atheros 802.11n
+	// 18 for Ralink  802.11g
 	u16HeaderLen = (pu8Payload[2] + (pu8Payload[3] << 8));
 //	fprintf(stderr, "u16headerlen: %d\n", u16HeaderLen);
-
+ 
 	// check for packet type and set headerlen accordingly
 	pu8Payload += u16HeaderLen;
 	switch (pu8Payload[1]) {
@@ -492,7 +497,6 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 
 	while ((n = ieee80211_radiotap_iterator_next(&rti)) == 0) {
 		switch (rti.this_arg_index) {
-		/* we don't use these radiotap infos right now, disabled
 		case IEEE80211_RADIOTAP_RATE:
 			prd.m_nRate = (*rti.this_arg);
 			break;
@@ -505,7 +509,6 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 		case IEEE80211_RADIOTAP_ANTENNA:
 			prd.m_nAntenna = (*rti.this_arg) + 1;
 			break;
-		*/
 		case IEEE80211_RADIOTAP_FLAGS:
 			prd.m_nRadiotapFlags = *rti.this_arg;
 			break;
@@ -514,18 +517,12 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 
 			dbm_last[adapter_no] = dbm[adapter_no];
 			dbm[adapter_no] = (int8_t)(*rti.this_arg);
-
-			if (dbm[adapter_no] > dbm_last[adapter_no]) { // if we have a better signal than last time, ignore
-			    dbm[adapter_no] = dbm_last[adapter_no];
-			}
-
+			// What should dbm_last[] do?
+			
 			dbm_ts_now[adapter_no] = current_timestamp();
 			if (dbm_ts_now[adapter_no] - dbm_ts_prev[adapter_no] > 220) {
 			    dbm_ts_prev[adapter_no] = current_timestamp();
-		//	    fprintf(stderr, "miss: %d   last: %d\n", packets_missing,packets_missing_last);
 			    rx_status->adapter[adapter_no].current_signal_dbm = dbm[adapter_no];
-			    dbm[adapter_no] = 99;
-			    dbm_last[adapter_no] = 99;
 			}
 			break;
 		}
@@ -605,7 +602,6 @@ int main(int argc, char *argv[]) {
 	setpriority(PRIO_PROCESS, 0, -10);
 
 	monitor_interface_t interfaces[MAX_PENUMBRA_INTERFACES];
-	int num_interfaces = 0;
 	int i;
 	//struct stat status;
 	prev_time = current_timestamp();
@@ -653,7 +649,6 @@ int main(int argc, char *argv[]) {
 
 	rx_status = status_memory_open();
 
-	int j = 0;
 	int x = optind;
 
 	char path[45], line[100];
@@ -679,9 +674,8 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// ini supports only support one interface now
-	// should be fixed later
 	open_and_configure_interface(iniparser_getstring(ini, "rx:nic", NULL), 
-									param_port, interfaces + num_interfaces);
+									param_port, interfaces);
 	snprintf(path, 45, "/sys/class/net/%s/device/uevent", iniparser_getstring(ini, "rx:nic", NULL));
 	procfile = fopen(path, "r");
 	if (!procfile) {
@@ -689,46 +683,18 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 	fgets(line, 100, procfile); // read the first line
-//	fgets(line, 100, procfile); // read the 2nd line
 	if(strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
 		fprintf(stderr, "ath9k card\n");
-		rx_status->adapter[j].type = (int8_t)(0);
+		rx_status->adapter[0].type = (int8_t)(0);
 	} else {
 		fprintf(stderr, "Ralink (or other) card\n");
-		rx_status->adapter[j].type = (int8_t)(1);
+		rx_status->adapter[0].type = (int8_t)(1);
 	}
 	fclose(procfile);
-	++num_interfaces;
 	usleep(10000);
-	rx_status->wifi_adapter_cnt = num_interfaces;
+	rx_status->wifi_adapter_cnt = 1;
 	
 	
-
-/* 	while(x < argc && num_interfaces < MAX_PENUMBRA_INTERFACES) {
-		open_and_configure_interface(argv[x], param_port, interfaces + num_interfaces);
-
-		snprintf(path, 45, "/sys/class/net/%s/device/uevent", argv[x]);
-		procfile = fopen(path, "r");
-		if (!procfile) {
-			fprintf(stderr,"ERROR: opening %s failed!\n", path); 
-			return 0;
-		}
-		fgets(line, 100, procfile); // read the first line
-		fgets(line, 100, procfile); // read the 2nd line
-		if(strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
-		    fprintf(stderr, "ath9k card\n");
-		    rx_status->adapter[j].type = (int8_t)(0);
-		} else {
-		    fprintf(stderr, "Ralink (or other) card\n");
-		    rx_status->adapter[j].type = (int8_t)(1);
-		}
-		fclose(procfile);
-
-		++num_interfaces;
-		++x;
-		++j;
-		usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
-	} */
 
 	
 
@@ -745,18 +711,16 @@ int main(int argc, char *argv[]) {
 		packetcounter_ts_now[i] = current_timestamp();
 		if (packetcounter_ts_now[i] - packetcounter_ts_prev[i] > 220) {
 		    packetcounter_ts_prev[i] = current_timestamp();
-		    for(i=0; i<num_interfaces; ++i) {
-				packetcounter_last[i] = packetcounter[i];
-				packetcounter[i] = rx_status->adapter[i].received_packet_cnt;
-	//			fprintf(stderr,"counter:%d last:%d   ",packetcounter[i],packetcounter_last[i]);
-				if (packetcounter[i] == packetcounter_last[i]) {
-					rx_status->adapter[i].signal_good = 0;
-	//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
-				} else {
-					rx_status->adapter[i].signal_good = 1;
-	//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
-				}
-		    }
+			packetcounter_last[i] = packetcounter[i];
+			packetcounter[i] = rx_status->adapter[i].received_packet_cnt;
+//			fprintf(stderr,"counter:%d last:%d   ",packetcounter[i],packetcounter_last[i]);
+			if (packetcounter[i] == packetcounter_last[i]) {
+				rx_status->adapter[i].signal_good = 0;
+//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
+			} else {
+				rx_status->adapter[i].signal_good = 1;
+//			    fprintf(stderr,"signal_good[%d]:%d\n",i,rx_status->adapter[i].signal_good);
+			}
 		}
 		fd_set readset;
 		struct timeval to;
@@ -765,19 +729,16 @@ int main(int argc, char *argv[]) {
 
 		FD_ZERO(&readset);
 		fd_sum = 0;
-		for (i=0; i<num_interfaces; ++i) {
-			FD_SET(interfaces[i].selectable_fd, &readset);
-			fd_sum += interfaces[i].selectable_fd;
-		}
+		FD_SET(interfaces[0].selectable_fd, &readset);
+		fd_sum += interfaces[0].selectable_fd;
 		int n = select(fd_sum+1, &readset, NULL, NULL, &to);
 		//int n = select(30, &readset, NULL, NULL, &to);	// what is 30???
 		if (n == 0) 
 			continue;
-		for (i=0; i<num_interfaces; ++i) {
-			if(FD_ISSET(interfaces[i].selectable_fd, &readset)) {
-				process_packet(interfaces + i, block_buffer_list, i);
-			}
+		if(FD_ISSET(interfaces[0].selectable_fd, &readset)) {
+			process_packet(interfaces, block_buffer_list, 0);
 		}
+
 	}
 	iniparser_freedict(ini);
 	fclose(save_fd);
