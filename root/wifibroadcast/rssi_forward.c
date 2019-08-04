@@ -66,6 +66,9 @@ typedef struct {
 	// uplink
 	int8_t current_signal_uplink;
 	uint32_t lost_packet_cnt_uplink;
+	
+	// Air Pi undervolt
+	uint8_t undervolt;
 
 } __attribute__((packed)) wifibroadcast_rx_status_forward_t;
 
@@ -200,6 +203,7 @@ int main(int argc, char *argv[]) {
 	    wbcdata.kbitrate_set = htonl(t_sysair->bitrate_measured_kbit);
 		wbcdata.cpuload_air = t_sysair->cpuload;
 	    wbcdata.temp_air = t_sysair->temp;
+		wbcdata.undervolt = t_sysair->undervolt;
 		
 		// 3. /wifibroadcast_rx_status_1 (telemetry rx)
 		wbcdata.lost_packet_cnt_telemetry_down = htonl(t_tdown->lost_packet_cnt);
@@ -215,6 +219,7 @@ int main(int argc, char *argv[]) {
 		// 6. wrt status	// rssitx/rssirx mod
 		wbcdata.cpuload_airwrt = t_sysair->cpuload_wrt;
 		wbcdata.temp_airwrt = t_sysair->temp_air;
+		
 		int fp;
 		fp = fopen("/proc/stat","r");
 		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);

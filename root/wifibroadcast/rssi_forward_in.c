@@ -53,6 +53,21 @@ typedef struct
     uint8_t temp_air; // CPU temperature Air Pi
     uint32_t wifi_adapter_cnt; // number of wifi adapters
     wifi_adapter_rx_status_forward_t adapter[6]; // same struct as in wifibroadcast lib.h
+	
+	// OpenWrt mod
+	// openwrt system status
+	uint8_t cpuload_airwrt; // CPU load Air WRT
+	uint8_t temp_airwrt; // CPU temperature Air WRT		// but.. not all wrts have a temp sensor
+	uint8_t cpuload_gndwrt; // CPU load Ground WRT
+	uint8_t temp_gndwrt; // CPU temperature Ground WRT
+	
+	// uplink
+	int8_t current_signal_uplink;
+	uint32_t lost_packet_cnt_uplink;
+	
+	// Air Pi undervolt
+	uint8_t undervolt;
+	
 } __attribute__((packed)) wifibroadcast_rx_status_forward_t;
 
 
@@ -123,6 +138,22 @@ wifibroadcast_rx_status_t_rc *status_memory_open_rc()
 	}
 	return (wifibroadcast_rx_status_t_rc*) retval;
 }
+
+
+wifibroadcast_rx_status_t *status_memory_open_uplink(void) {
+	char buf[128];
+	int fd;
+	sprintf(buf, "/wifibroadcast_rx_status_uplink");
+	fd = shm_open(buf, O_RDWR, S_IRUSR | S_IWUSR);
+	if(fd < 0) { perror("shm_open"); exit(1); }
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
+	status_memory_init(tretval);
+	return tretval;
+}
+
+
 
 void dump_memory(void* p, int length, char * tag)
 {
@@ -204,6 +235,7 @@ int main(int argc, char *argv[])
 	wifibroadcast_rx_status_t *t_tdown = status_memory_open_tdown();
 	wifibroadcast_rx_status_t_sysair *t_sysair = status_memory_open_sysair();
 	wifibroadcast_rx_status_t_rc *t_rc = status_memory_open_rc();
+	wifibroadcast_rx_status_t *t_uplink = status_memory_open_uplink();
 	wifibroadcast_rx_status_forward_t wbcdata;
 	bzero(&wbcdata, sizeof(wbcdata));
 	int number_cards = t->wifi_adapter_cnt;
@@ -231,6 +263,11 @@ int main(int argc, char *argv[])
 			t_sysair->bitrate_measured_kbit = ntohl(wbcdata.kbitrate_set);
 			t_sysair->cpuload = wbcdata.cpuload_air;
 			t_sysair->temp = wbcdata.temp_air;
+			t_sysair->cpuload_wrt = wbcdata.cpuload_airwrt;
+			t_sysair->temp_wrt = wbcdata.temp_airwrt;
+			t_sysair->undervolt = wbcdata.undervolt;
+			t_uplink->adapter[0].current_signal_dbm = wbcdata.current_signal_uplink;
+			t_uplink->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_uplink);
 			t_tdown->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_telemetry_down);
 			t_rc->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_rc);
 			t_rc->adapter[0].current_signal_dbm = wbcdata.current_signal_air;
