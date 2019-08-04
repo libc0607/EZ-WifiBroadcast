@@ -119,6 +119,8 @@ uint8_t process_packet(monitor_interface_t *interface, int adapter_no) {
 	    uint16_t bitrate_measured_kbit;
 	    uint8_t cts;
 	    uint8_t undervolt;
+		uint8_t cpuload_wrt;
+		uint8_t temp_wrt;
 	}  __attribute__ ((__packed__));
 
 	struct payloaddata_s payloaddata;
@@ -181,6 +183,8 @@ uint8_t process_packet(monitor_interface_t *interface, int adapter_no) {
 	rx_status_rc->lost_packet_cnt = payloaddata.lostpackets_rc;
 	rx_status_sysair->cpuload = payloaddata.cpuload;
 	rx_status_sysair->temp = payloaddata.temp;
+	rx_status_sysair->cpuload_wrt = payloaddata.cpuload_wrt;
+	rx_status_sysair->temp_wrt = payloaddata.temp_wrt;
 
 	rx_status_sysair->skipped_fec_cnt = payloaddata.skipped_fec_cnt;
 	rx_status_sysair->injected_block_cnt = payloaddata.injected_block_cnt;

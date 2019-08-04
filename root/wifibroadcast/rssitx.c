@@ -85,6 +85,8 @@ struct framedata_s {
     uint16_t bitrate_measured_kbit;
     uint8_t cts;
     uint8_t undervolt;
+	uint8_t cpuload_wrt;
+    uint8_t temp_wrt;
 }  __attribute__ ((__packed__));
 
 struct framedata_s framedata;
@@ -94,6 +96,7 @@ void usage(void)
 {
     printf(
         "rssitx by Rodizio.\n"
+		"Dirty mod by Github @libc0607\n"
         "\n"
         "Usage: rssitx <interface>\n"
         "\n"
@@ -104,7 +107,8 @@ void usage(void)
 }
 
 
-static int open_sock (char *ifname) {
+static int open_sock (char *ifname) 
+{
     struct sockaddr_ll ll_addr;
     struct ifreq ifr;
 
@@ -151,7 +155,8 @@ static int open_sock (char *ifname) {
 }
 
 
-void sendRSSI(int sock, telemetry_data_t *td) {
+void sendRSSI(int sock, telemetry_data_t *td) 
+{
 	if (td->rx_status != NULL) {
 		long double a[4], b[4];
 		FILE *fp;
@@ -161,21 +166,6 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 		int cardcounter = 0;
 		int number_cards = td->rx_status->wifi_adapter_cnt;
 		int number_cards_rc = td->rx_status_rc->wifi_adapter_cnt;
-//		printf("num_cards:%d num_cards_rc:%d\n", number_cards,number_cards_rc);
-
-//		no_signal=true;
-//      for(cardcounter=0; cardcounter<number_cards; ++cardcounter) {
-//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) { 
-//				printf("card[%i] signal good\n",cardcounter); 
-//			}
-//		    printf("dbm[%i]: %d  \n",cardcounter, td->rx_status->adapter[cardcounter].current_signal_dbm);
-//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) {
-//              if (best_dbm < td->rx_status->adapter[cardcounter].current_signal_dbm) 
-//					best_dbm = td->rx_status->adapter[cardcounter].current_signal_dbm;
-//		    }
-//		    if (td->rx_status->adapter[cardcounter].signal_good == 1) 
-//				no_signal=false;
-//          }
 
 		no_signal_rc=true;
 		for (cardcounter=0; cardcounter<number_cards_rc; ++cardcounter) {
@@ -221,17 +211,18 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 		fp = fopen("/proc/stat","r");
 		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&b[0],&b[1],&b[2],&b[3]);
 		fclose(fp);
-		framedata.cpuload = (((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3]))) * 100;
+		framedata.cpuload_wrt = (((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3]))) * 100;
 
 		// Do not send temp on OpenWrt by default		
-		int temp = 0;
+		int temp_wrt = 0;
 		fp = fopen("/tmp/wbc_temp","r");
 		if (fp) {
-			fscanf(fp,"%d",&temp);
+			fscanf(fp,"%d",&temp_wrt);
 			fclose(fp);
-			fprintf(stderr,"temp: %d\n",temp/1000);	
+			fprintf(stderr,"temp: %d\n",temp_wrt/1000);	
 		}
-		framedata.temp = temp / 1000;
+		framedata.temp_wrt = temp_wrt / 1000;
+
 	}
 
 //	printf("signal: %d\n", framedata.signal);
@@ -245,13 +236,13 @@ void sendRSSI(int sock, telemetry_data_t *td) {
 //	printf("lostpackets: %d\n", framedata.lostpackets);
 //	printf("lostpackets_rc: %d\n", framedata.lostpackets_rc);
 	// send three times with different delay in between to increase robustness against packetloss
-	if (write(socks[0], &framedata, 74) < 0 ) 
+	if (write(socks[0], &framedata, sizeof(framedata)) < 0 ) 
 		fprintf(stderr, "!");
 	usleep(1500);
-	if (write(socks[0], &framedata, 74) < 0 ) 
+	if (write(socks[0], &framedata, sizeof(framedata)) < 0 ) 
 		fprintf(stderr, "!");
 	usleep(2000);
-	if (write(socks[0], &framedata, 74) < 0 ) 
+	if (write(socks[0], &framedata, sizeof(framedata)) < 0 ) 
 		fprintf(stderr, "!");
 }
 
@@ -302,6 +293,21 @@ wifibroadcast_tx_status_t *telemetry_wbc_status_memory_open_tx(void) {
     return (wifibroadcast_tx_status_t*)retval;
 }
 
+wifibroadcast_rx_status_t_sysair 	*status_memory_open_sysair() {
+	int fd;
+	fd = shm_open("/wifibroadcast_rx_status_sysair", O_RDWR, S_IRUSR | S_IWUSR);
+	if(fd < 0) { 
+		fprintf(stderr,"ERROR: Could not open wifibroadcast_rx_status_sysair"); 
+		exit(1); 
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_sysair), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
+	return (wifibroadcast_rx_status_t_sysair*)retval;
+}
+
 void telemetry_init(telemetry_data_t *td) {
 	// init RSSI shared memory
 	td->rx_status = telemetry_wbc_status_memory_open();
@@ -350,15 +356,6 @@ int main (int argc, char *argv[]) {
 //	printf("cts: %i\n", cts);
 	fclose (pFile);
 
-	int undervolt;
-	pFile = fopen ("/tmp/undervolt", "r");
-	if (NULL == pFile) {
-		perror("ERROR: Could not open /tmp/undervolt");
-		exit(EXIT_FAILURE);
-	}
-	fscanf(pFile, "%i\n", &undervolt);
-//	printf("undervolt: %i\n", undervolt);
-	fclose (pFile);
 
 	telemetry_data_t td;
 	telemetry_init(&td);
@@ -422,9 +419,14 @@ int main (int argc, char *argv[]) {
 	framedata.bitrate_kbit = bitrate_kbit;
 	framedata.bitrate_measured_kbit = bitrate_measured_kbit;
 	framedata.cts = cts;
-	framedata.undervolt = undervolt;
+
+	wifibroadcast_rx_status_t_sysair *t_sysair = status_memory_open_sysair();
+	
 
 	while (done) {
+		framedata.undervolt = t_sysair->undervolt;
+		framedata.cpuload = t_sysair->cpuload;
+		framedata.temp = t_sysair->temp;
 		sendRSSI(sock, &td);
 	}
 	return 0;
