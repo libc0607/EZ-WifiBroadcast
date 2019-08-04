@@ -52,13 +52,25 @@ typedef struct {
     uint8_t cpuload_gnd; // CPU load Ground Pi
     uint8_t temp_gnd; // CPU temperature Ground Pi
     uint8_t cpuload_air; // CPU load Air Pi
-    uint8_t temp_air; // CPU temperature Air Pi
+    uint8_t temp_air; // CPU temperature Air Pi	
     uint32_t wifi_adapter_cnt; // number of wifi adapters
     wifi_adapter_rx_status_forward_t adapter[6]; // same struct as in wifibroadcast lib.h
+	
+	// OpenWrt mod
+	// openwrt system status
+	uint8_t cpuload_airwrt; // CPU load Air WRT
+	uint8_t temp_airwrt; // CPU temperature Air WRT		// but.. not all wrts have a temp sensor
+	uint8_t cpuload_gndwrt; // CPU load Ground WRT
+	uint8_t temp_gndwrt; // CPU temperature Ground WRT
+	
+	// uplink
+	int8_t current_signal_uplink;
+	uint32_t lost_packet_cnt_uplink;
+
 } __attribute__((packed)) wifibroadcast_rx_status_forward_t;
 
 
-wifibroadcast_rx_status_t *status_memory_open() {
+wifibroadcast_rx_status_t 			*status_memory_open() {
 	int fd;
 	fd = shm_open("/wifibroadcast_rx_status_0", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) { fprintf(stderr,"ERROR: Could not open wifibroadcast_rx_status_0"); exit(1); }
@@ -68,7 +80,7 @@ wifibroadcast_rx_status_t *status_memory_open() {
 	return (wifibroadcast_rx_status_t*)retval;
 }
 
-wifibroadcast_rx_status_t *status_memory_open_tdown() {
+wifibroadcast_rx_status_t 			*status_memory_open_tdown() {
 	int fd;
 	fd = shm_open("/wifibroadcast_rx_status_1", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) { fprintf(stderr,"ERROR: Could not open wifibroadcast_rx_status_1"); exit(1);}
@@ -78,7 +90,7 @@ wifibroadcast_rx_status_t *status_memory_open_tdown() {
 	return (wifibroadcast_rx_status_t*)retval;
 }
 
-wifibroadcast_rx_status_t_sysair *status_memory_open_sysair() {
+wifibroadcast_rx_status_t_sysair 	*status_memory_open_sysair() {
 	int fd;
 	fd = shm_open("/wifibroadcast_rx_status_sysair", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) { fprintf(stderr,"ERROR: Could not open wifibroadcast_rx_status_sysair"); exit(1); }
@@ -88,7 +100,7 @@ wifibroadcast_rx_status_t_sysair *status_memory_open_sysair() {
 	return (wifibroadcast_rx_status_t_sysair*)retval;
 }
 
-wifibroadcast_rx_status_t_rc *status_memory_open_rc() {
+wifibroadcast_rx_status_t_rc 		*status_memory_open_rc() {
 	int fd;
 	fd = shm_open("/wifibroadcast_rx_status_rc", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) { fprintf(stderr,"ERROR: Could not open wifibroadcast_rx_status_rc"); exit(1); }
@@ -96,6 +108,16 @@ wifibroadcast_rx_status_t_rc *status_memory_open_rc() {
 	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t_rc), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
 	return (wifibroadcast_rx_status_t_rc*)retval;
+}
+
+wifibroadcast_rx_status_t 			*status_memory_open_uplink() {
+	int fd;
+	fd = shm_open("/wifibroadcast_rx_status_uplink", O_RDWR, S_IRUSR | S_IWUSR);
+	if(fd < 0) { fprintf(stderr,"ERROR: Could not open wifibroadcast_rx_status_uplink"); exit(1); }
+	//if (ftruncate(fd, sizeof(wifibroadcast_rx_status_t_rc)) == -1) { perror("ftruncate"); exit(1); }
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
+	return (wifibroadcast_rx_status_t*)retval;
 }
 
 
@@ -138,37 +160,14 @@ int main(int argc, char *argv[]) {
 	wifibroadcast_rx_status_t *t_tdown = status_memory_open_tdown();
 	wifibroadcast_rx_status_t_sysair *t_sysair = status_memory_open_sysair();
 	wifibroadcast_rx_status_t_rc *t_rc = status_memory_open_rc();
-
+	wifibroadcast_rx_status_t *t_uplink = status_memory_open_uplink();
+	
 	wifibroadcast_rx_status_forward_t wbcdata;
 
 	int number_cards = t->wifi_adapter_cnt;
 
-	wbcdata.damaged_block_cnt = 0;
-	wbcdata.lost_packet_cnt = 0;
-	wbcdata.skipped_packet_cnt = 0;
-	wbcdata.received_packet_cnt = 0;
-	wbcdata.kbitrate = 0;
-	wbcdata.kbitrate_measured = 0;
-	wbcdata.kbitrate_set = 0;
-	wbcdata.lost_packet_cnt_telemetry_up = 0;
-	wbcdata.lost_packet_cnt_telemetry_down = 0;
-	wbcdata.lost_packet_cnt_msp_up = 0;
-	wbcdata.lost_packet_cnt_msp_down = 0;
-	wbcdata.lost_packet_cnt_rc = 0;
-	wbcdata.current_signal_air = 0;
-	wbcdata.joystick_connected = 0;
-	wbcdata.cpuload_gnd = 0;
-	wbcdata.temp_gnd = 0;
-	wbcdata.cpuload_air = 0;
-	wbcdata.temp_air = 0;
-	wbcdata.wifi_adapter_cnt = 0;
-
-	for(j=0; j<6; ++j) {
-	    wbcdata.adapter[j].current_signal_dbm = 0;
-	    wbcdata.adapter[j].received_packet_cnt = 0;
-	    wbcdata.adapter[j].type = 0;
-	}
-
+	bzero(&wbcdata, sizeof(wbcdata));
+	
 	if ((s_rssi=socket(PF_INET, SOCK_DGRAM, 0))==-1) 
 		printf("ERROR: Could not create UDP socket!");
 	
@@ -182,33 +181,69 @@ int main(int argc, char *argv[]) {
 	}
 	
 	for(;;) {
+		
+		// 1. /wifibroadcast_rx_status_0 (video rx)
 	    wbcdata.damaged_block_cnt = htonl(t->damaged_block_cnt);
 	    wbcdata.lost_packet_cnt = htonl(t->lost_packet_cnt);
 	    wbcdata.skipped_packet_cnt = htonl(t_sysair->skipped_fec_cnt);
 	    wbcdata.received_packet_cnt = htonl(t->received_packet_cnt);
 	    wbcdata.kbitrate = htonl(t->kbitrate);
-	    wbcdata.kbitrate_measured = htonl(t_sysair->bitrate_kbit);
-	    wbcdata.kbitrate_set = htonl(t_sysair->bitrate_measured_kbit);
-	    wbcdata.lost_packet_cnt_telemetry_up = htonl(0);
-	    wbcdata.lost_packet_cnt_telemetry_down = htonl(t_tdown->lost_packet_cnt);
-	    wbcdata.lost_packet_cnt_msp_up = htonl(0);
-	    wbcdata.lost_packet_cnt_msp_down = htonl(0);
-	    wbcdata.lost_packet_cnt_rc = htonl(t_rc->lost_packet_cnt);
-	    wbcdata.current_signal_air = t_rc->adapter[0].current_signal_dbm;
-	    wbcdata.joystick_connected = 0;
-	    wbcdata.cpuload_gnd = 0;
-	    wbcdata.temp_gnd = 0;
-	    wbcdata.cpuload_air = t_sysair->cpuload;
-	    wbcdata.temp_air = t_sysair->temp;
-	    wbcdata.wifi_adapter_cnt = htonl(t->wifi_adapter_cnt);
-
-	    for(cardcounter=0; cardcounter<6; ++cardcounter) {
+		wbcdata.wifi_adapter_cnt = htonl(t->wifi_adapter_cnt);
+		for (cardcounter=0; cardcounter<6; ++cardcounter) {
 			wbcdata.adapter[cardcounter].current_signal_dbm = t->adapter[cardcounter].current_signal_dbm;
 			wbcdata.adapter[cardcounter].received_packet_cnt = htonl(t->adapter[cardcounter].received_packet_cnt);
 			wbcdata.adapter[cardcounter].type = t->adapter[cardcounter].type;
 	    }
+		
+		// 2. /wifibroadcast_rx_status_sysair (sys status)
+	    wbcdata.kbitrate_measured = htonl(t_sysair->bitrate_kbit);
+	    wbcdata.kbitrate_set = htonl(t_sysair->bitrate_measured_kbit);
+		wbcdata.cpuload_air = t_sysair->cpuload;
+	    wbcdata.temp_air = t_sysair->temp;
+		
+		// 3. /wifibroadcast_rx_status_1 (telemetry rx)
+		wbcdata.lost_packet_cnt_telemetry_down = htonl(t_tdown->lost_packet_cnt);
+		
+		// 4. /wifibroadcast_rx_status_rc (rc on air pi)
+	    wbcdata.lost_packet_cnt_rc = htonl(t_rc->lost_packet_cnt);
+	    wbcdata.current_signal_air = t_rc->adapter[0].current_signal_dbm;
+		
+		// 5. /wifibroadcast_rx_status_uplink
+		wbcdata.current_signal_uplink = t_uplink->adapter[0].current_signal_dbm;
+		wbcdata.lost_packet_cnt_uplink = htonl(t_uplink->lost_packet_cnt);
+		
+		// 6. wrt status	// rssitx/rssirx mod
+		wbcdata.cpuload_airwrt = t_sysair->cpuload_wrt;
+		wbcdata.temp_airwrt = t_sysair->temp_air;
+		int fp;
+		fp = fopen("/proc/stat","r");
+		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);
+		fclose(fp);
+		fp = fopen("/proc/stat","r");
+		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&b[0],&b[1],&b[2],&b[3]);
+		fclose(fp);
+		wbcdata.cpuload_gndwrt = (((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3]))) * 100;		
+		int temp_wrt = 0;
+		fp = fopen("/tmp/wbc_temp","r");
+		if (fp) {
+			fscanf(fp,"%d",&temp_wrt);
+			fclose(fp);
+			fprintf(stderr,"temp: %d\n",temp_wrt/1000);	
+		}
+		wbcdata.temp_gndwrt = temp_wrt / 1000;
+		
+		// Unused
+		wbcdata.lost_packet_cnt_telemetry_up = htonl(0);
+	    wbcdata.lost_packet_cnt_msp_up = htonl(0);
+	    wbcdata.lost_packet_cnt_msp_down = htonl(0);
+	    wbcdata.joystick_connected = 0;
+	    wbcdata.cpuload_gnd = 0;
+	    wbcdata.temp_gnd = 0;
 
-	    if (sendto(s_rssi, &wbcdata, 94, 0, (struct sockaddr*)&si_other_rssi, slen_rssi)==-1) 
+
+
+
+	    if (sendto(s_rssi, &wbcdata, sizeof(wbcdata), 0, (struct sockaddr*)&si_other_rssi, slen_rssi)==-1) 
 			printf("ERROR: Could not send RSSI data!");
 	    usleep(100000);
 	}
