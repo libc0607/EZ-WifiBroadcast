@@ -68,6 +68,18 @@ typedef struct
 	// Air Pi undervolt
 	uint8_t undervolt;
 	
+		
+	// some other variables in /wifibroadcast_rx_status_0	
+	uint32_t rx0_lost_per_block_cnt;
+	uint32_t rx0_received_block_cnt;
+	uint32_t rx0_tx_restart_cnt;
+	
+	// other in shmem sysair
+	uint8_t sysair_cts;
+	uint32_t sysair_injected_block_cnt;
+	uint32_t sysair_injection_fail_cnt;
+	long long sysair_injection_time_block;
+	
 } __attribute__((packed)) wifibroadcast_rx_status_forward_t;
 
 
@@ -253,11 +265,26 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 			printf("Get data from %s, %d Bytes\n", inet_ntoa(addr.sin_addr), ret);
 #endif
+			// /wifibroadcast_rx_status_0	
 			t->damaged_block_cnt = ntohl(wbcdata.damaged_block_cnt);
 			t->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt);
 			t->received_packet_cnt = ntohl(wbcdata.received_packet_cnt);
 			t->kbitrate = ntohl(wbcdata.kbitrate);
 			t->wifi_adapter_cnt = ntohl(wbcdata.wifi_adapter_cnt);
+			t->lost_per_bolck_cnt = ntohl(wbcdata.lost_per_block_cnt);
+			t->received_block_cnt = ntohl(wbcdata.received_block_cnt);
+			t->tx_restart_cnt = ntohl(wbcdata.tx_restart_cnt);
+			for (cardcounter=0; cardcounter<6; ++cardcounter) {
+				t->adapter[cardcounter].current_signal_dbm = 
+							wbcdata.adapter[cardcounter].current_signal_dbm;
+				t->adapter[cardcounter].received_packet_cnt = 
+							ntohl(wbcdata.adapter[cardcounter].received_packet_cnt);
+				t->adapter[cardcounter].type = wbcdata.adapter[cardcounter].type;
+				t->adapter[cardcounter].signal_good = wbcdata.adapter[cardcounter].signal_good;
+				t->adapter[cardcounter].wrong_crc_cnt = wbcdata.adapter[cardcounter].wrong_crc_cnt;
+			}
+			
+			// /wifibroadcast_rx_status_sysair	
 			t_sysair->skipped_fec_cnt = ntohl(wbcdata.skipped_packet_cnt);
 			t_sysair->bitrate_kbit = ntohl(wbcdata.kbitrate_measured);
 			t_sysair->bitrate_measured_kbit = ntohl(wbcdata.kbitrate_set);
@@ -266,18 +293,22 @@ int main(int argc, char *argv[])
 			t_sysair->cpuload_wrt = wbcdata.cpuload_airwrt;
 			t_sysair->temp_wrt = wbcdata.temp_airwrt;
 			t_sysair->undervolt = wbcdata.undervolt;
+			t_sysair->cts = wbcdata.sysair_cts;
+			t_sysair->injection_fail_cnt = wbcdata.sysair_injection_fail_cnt;
+			t_sysair->injection_time_block = wbcdata.sysair_injection_time_block;
+			t_sysair->injected_block_cnt = wbcdata.sysair_injected_block_cnt;
+			
+			// /wifibroadcast_rx_status_uplink	
 			t_uplink->adapter[0].current_signal_dbm = wbcdata.current_signal_uplink;
 			t_uplink->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_uplink);
+			
+			// /wifibroadcast_rx_status_1		
 			t_tdown->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_telemetry_down);
+			
+			// /wifibroadcast_rx_status_rc	
 			t_rc->lost_packet_cnt = ntohl(wbcdata.lost_packet_cnt_rc);
 			t_rc->adapter[0].current_signal_dbm = wbcdata.current_signal_air;
-			for (cardcounter=0; cardcounter<6; ++cardcounter) {
-				t->adapter[cardcounter].current_signal_dbm = 
-							wbcdata.adapter[cardcounter].current_signal_dbm;
-				t->adapter[cardcounter].received_packet_cnt = 
-							ntohl(wbcdata.adapter[cardcounter].received_packet_cnt);
-				t->adapter[cardcounter].type = wbcdata.adapter[cardcounter].type;
-			}
+			
 		}
 	}
 	close(sockfd);

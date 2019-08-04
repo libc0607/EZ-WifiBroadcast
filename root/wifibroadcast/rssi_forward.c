@@ -28,10 +28,13 @@ udp_bind_port=35004
 #include "lib.h"
 #include <iniparser.h>
 
+
 typedef struct {
     uint32_t received_packet_cnt;
+	uint32_t wrong_crc_cnt;			// add
     int8_t current_signal_dbm;
     int8_t type; // 0 = Atheros, 1 = Ralink
+	int8_t signal_good;	// add
 } __attribute__((packed)) wifi_adapter_rx_status_forward_t;
 
 typedef struct {
@@ -69,6 +72,17 @@ typedef struct {
 	
 	// Air Pi undervolt
 	uint8_t undervolt;
+	
+	// some other variables in /wifibroadcast_rx_status_0	
+	uint32_t rx0_lost_per_block_cnt;
+	uint32_t rx0_received_block_cnt;
+	uint32_t rx0_tx_restart_cnt;
+	
+	// other in shmem sysair
+	uint8_t sysair_cts;
+	uint32_t sysair_injected_block_cnt;
+	uint32_t sysair_injection_fail_cnt;
+	long long sysair_injection_time_block;
 
 } __attribute__((packed)) wifibroadcast_rx_status_forward_t;
 
@@ -192,10 +206,15 @@ int main(int argc, char *argv[]) {
 	    wbcdata.received_packet_cnt = htonl(t->received_packet_cnt);
 	    wbcdata.kbitrate = htonl(t->kbitrate);
 		wbcdata.wifi_adapter_cnt = htonl(t->wifi_adapter_cnt);
+		wbcdata.rx0_lost_per_block_cnt = htonl(t->lost_per_block_cnt);
+		wbcdata.rx0_received_block_cnt = htonl(t->received_block_cnt);
+		wbcdata.rx0_tx_restart_cnt = htonl(t->tx_restart_cnt);
 		for (cardcounter=0; cardcounter<6; ++cardcounter) {
 			wbcdata.adapter[cardcounter].current_signal_dbm = t->adapter[cardcounter].current_signal_dbm;
 			wbcdata.adapter[cardcounter].received_packet_cnt = htonl(t->adapter[cardcounter].received_packet_cnt);
 			wbcdata.adapter[cardcounter].type = t->adapter[cardcounter].type;
+			wbcdata.adapter[cardcounter].signal_good = t->adapter[cardcounter].signal_good;
+			wbcdata.adapter[cardcounter].wrong_crc_cnt = htonl(t->adapter[cardcounter].wrong_crc_cnt);
 	    }
 		
 		// 2. /wifibroadcast_rx_status_sysair (sys status)
@@ -204,7 +223,11 @@ int main(int argc, char *argv[]) {
 		wbcdata.cpuload_air = t_sysair->cpuload;
 	    wbcdata.temp_air = t_sysair->temp;
 		wbcdata.undervolt = t_sysair->undervolt;
-		
+		wbcdata.sysair_cts = t_sysair->cts;
+		wbcdata.sysair_injection_fail_cnt = htonl(t_sysair->injection_fail_cnt);
+		wbcdata.sysair_injection_time_block = htonl(t_sysair->injection_time_block);
+		wbcdata.sysair_injected_block_cnt = htonl(t_sysair->injected_block_cnt);
+
 		// 3. /wifibroadcast_rx_status_1 (telemetry rx)
 		wbcdata.lost_packet_cnt_telemetry_down = htonl(t_tdown->lost_packet_cnt);
 		
