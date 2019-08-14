@@ -163,7 +163,7 @@ void usage(void) {
 	"cts_protection=0		# CTS protection disabled / CTS protection enabled (Atheros only)\n"
 	"retrans_count=2       	# Retransmission count. 1 = send each frame once, 2 = twice, 3 = three times ... Default = 1\n"
 	"tele_protocol=1   		# Telemetry protocol to be used. 0 = Mavlink. 1 = generic (for all others)\n"
-	"wifimode=g		    	# Wi-Fi mode. g=802.11g n=802.11n"
+	"wifimode=0		    	# Wi-Fi mode. 0=802.11g 1=802.11n"
 	"ldpc=0		        	# 1-Use LDPC encode, 0-default. Experimental. Only valid when wifimode=n and both your Wi-Fi cards support LDPC."
 	"rate=6             	# Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
 	"mode=0             	# Transmission mode, not used. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
@@ -322,12 +322,13 @@ int main(int argc, char *argv[]) {
 	param_telemetry_protocol = iniparser_getint(ini, "tx_telemetry:tele_protocol", 0);
 	param_data_rate = iniparser_getint(ini, "tx_telemetry:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx_telemetry:mode", 0);
-	param_wifimode = (0 == strcmp("g", iniparser_getstring(ini, "tx_telemetry:wifimode", NULL)))? 0: 1;
+	param_wifimode = (0 == iniparser_getint(ini, "tx:wifimode", 0))? 0: 1;
 	param_ldpc = iniparser_getint(ini, "tx_telemetry:ldpc", 0);
 	
-	fprintf(stderr, "%s Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, nic %s\n",
+	fprintf(stderr, "%s Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, wifimode %d, ldpc %d, nic %s\n",
 			argv[0], param_cts, param_port, param_retransmissions, param_telemetry_protocol,
-			param_data_rate, param_transmission_mode, iniparser_getstring(ini, "tx_telemetry:nic", NULL)
+			param_data_rate, param_transmission_mode, param_wifimode, param_ldpc,
+			iniparser_getstring(ini, "tx_telemetry:nic", NULL)
 	);
     int x = optind;
     int num_interfaces = 0;

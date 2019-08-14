@@ -151,7 +151,7 @@ void usage(void) {
 		"fecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
 		"packetsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
 		"frametype=0        # Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
-		"wifimode=g		      # Wi-Fi mode. g=802.11g n=802.11n"
+		"wifimode=0		      # Wi-Fi mode. 0=802.11g 0=802.11n"
 		"ldpc=0		          # 1-Use LDPC encode, 0-default. Experimental. Only valid when wifimode=n and both your Wi-Fi cards support LDPC."
 		"rate=6               # When wifimode=g, data rate to send frames with. Choose 1,2,5,6,11,12,18,24,36 Mbit\n"
 		"                     # When wifimode=n, mcs index, 0~7\n"
@@ -489,9 +489,9 @@ int main(int argc, char *argv[]) {
 	param_packet_type = iniparser_getint(ini, "tx:frametype", 0);
 	param_data_rate = iniparser_getint(ini, "tx:rate", 0);
 	param_transmission_mode = iniparser_getint(ini, "tx:mode", 0);
-	if (0 == strcmp(iniparser_getstring(ini, "tx:wifimode", NULL), "g")) {
+	if (0 == iniparser_getint(ini, "tx:wifimode", 0)) {
 		param_wifi_mode = 0;
-	} else if (0 == strcmp(iniparser_getstring(ini, "tx:wifimode", NULL), "n")) {
+	} else if (1 == iniparser_getint(ini, "tx:wifimode", 0)) {
 		if (iniparser_getint(ini, "tx:ldpc", 0) == 0) {
 			param_wifi_mode = 1;
 		} else if (iniparser_getint(ini, "tx:ldpc", 0) == 1) {
@@ -499,9 +499,9 @@ int main(int argc, char *argv[]) {
 		}
 	} 
 
-	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, mode %d, nic %s\n",
+	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, transmode %d, wifimode %d, nic %s\n",
 			argv[0], param_data_packets_per_block, param_fec_packets_per_block, param_packet_length,
-			param_port, param_packet_type, param_data_rate, param_transmission_mode,
+			param_port, param_packet_type, param_data_rate, param_transmission_mode, param_wifi_mode, 
 			iniparser_getstring(ini, "tx:nic", NULL));
 
     if (param_packet_length > MAX_USER_PACKET_LENGTH) {
