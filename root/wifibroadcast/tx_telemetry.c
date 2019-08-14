@@ -115,7 +115,7 @@ static u8 u8aRadiotapHeader[] = {
 
 static u8 u8aRadiotapHeader80211n[] = {
 	0x00, 0x00, // <-- radiotap version
-	0x0c, 0x00, // <- radiotap header length
+	0x0d, 0x00, // <- radiotap header length
 	0x00, 0x80, 0x08, 0x00, // <-- radiotap present flags (tx flags, mcs)
 	0x00, 0x00, 	// tx-flag
 	0x07, 			// mcs have: bw, gi, fec: 					 8'b00010111
