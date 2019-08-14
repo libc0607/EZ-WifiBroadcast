@@ -27,7 +27,7 @@ uart=/dev/ttyUSB0
 #include <iniparser.h>
 #include <linux/serial.h>
 #include <net/if.h>
-#include <netinet/ether.h>
+//#include <netinet/ether.h>
 #include <netpacket/packet.h>
 #include <poll.h>
 #include <stdint.h>
