@@ -24,11 +24,12 @@
 
 #define DEBUG
 
-typedef struct 
-{
+typedef struct {
     uint32_t received_packet_cnt;
+	uint32_t wrong_crc_cnt;			// add
     int8_t current_signal_dbm;
     int8_t type; // 0 = Atheros, 1 = Ralink
+	int8_t signal_good;	// add
 } __attribute__((packed)) wifi_adapter_rx_status_forward_t;
 
 typedef struct 
@@ -152,17 +153,21 @@ wifibroadcast_rx_status_t_rc *status_memory_open_rc()
 }
 
 
-wifibroadcast_rx_status_t *status_memory_open_uplink(void) {
-	char buf[128];
+wifibroadcast_rx_status_t *status_memory_open_uplink(void) 
+{
 	int fd;
-	sprintf(buf, "/wifibroadcast_rx_status_uplink");
-	fd = shm_open(buf, O_RDWR, S_IRUSR | S_IWUSR);
-	if(fd < 0) { perror("shm_open"); exit(1); }
-	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (retval == MAP_FAILED) { perror("mmap"); exit(1); }
-	wifibroadcast_rx_status_t *tretval = (wifibroadcast_rx_status_t*)retval;
-	status_memory_init(tretval);
-	return tretval;
+	fd = shm_open("/wifibroadcast_rx_status_uplink", O_RDWR, S_IRUSR | S_IWUSR);
+	if (fd < 0) {
+		perror("shm_open"); 
+		exit(1); 
+	}
+	void *retval = mmap(NULL, sizeof(wifibroadcast_rx_status_t), 
+						PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (retval == MAP_FAILED) { 
+		perror("mmap"); 
+		exit(1); 
+	}
+	return (wifibroadcast_rx_status_t *) retval;
 }
 
 
@@ -250,12 +255,12 @@ int main(int argc, char *argv[])
 	wifibroadcast_rx_status_t *t_uplink = status_memory_open_uplink();
 	wifibroadcast_rx_status_forward_t wbcdata;
 	bzero(&wbcdata, sizeof(wbcdata));
-	int number_cards = t->wifi_adapter_cnt;
+	//int number_cards = t->wifi_adapter_cnt;
 
 	for(;;) {
 		usleep(100000);
 		ret = recvfrom(sockfd, (char *)&wbcdata, 94, 0, 
-					(struct sockaddr*)&addr, &slen_rssi);
+					(struct sockaddr*)&addr, (socklen_t *)&slen_rssi);
 #ifdef DEBUG
 		printf("============Loop=================\n");			
 		printf("recvlen = %d, err = %d\n", ret, errno);
@@ -271,9 +276,9 @@ int main(int argc, char *argv[])
 			t->received_packet_cnt = ntohl(wbcdata.received_packet_cnt);
 			t->kbitrate = ntohl(wbcdata.kbitrate);
 			t->wifi_adapter_cnt = ntohl(wbcdata.wifi_adapter_cnt);
-			t->lost_per_bolck_cnt = ntohl(wbcdata.lost_per_block_cnt);
-			t->received_block_cnt = ntohl(wbcdata.received_block_cnt);
-			t->tx_restart_cnt = ntohl(wbcdata.tx_restart_cnt);
+			t->lost_per_block_cnt = ntohl(wbcdata.rx0_lost_per_block_cnt);
+			t->received_block_cnt = ntohl(wbcdata.rx0_received_block_cnt);
+			t->tx_restart_cnt = ntohl(wbcdata.rx0_tx_restart_cnt);
 			for (cardcounter=0; cardcounter<6; ++cardcounter) {
 				t->adapter[cardcounter].current_signal_dbm = 
 							wbcdata.adapter[cardcounter].current_signal_dbm;

@@ -138,7 +138,8 @@ wifibroadcast_rx_status_t 			*status_memory_open_uplink() {
 }
 
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) 
+{
 	if(argc < 2){
         fprintf(stderr, "usage: %s <ini.file>\n", argv[0]);
         return 1;
@@ -157,7 +158,7 @@ int main(int argc, char *argv[]) {
 	
 	
 	int16_t port = atoi(iniparser_getstring(ini, "rssirx:udp_port", NULL));
-	int j = 0;
+	//int j = 0;
 	int cardcounter = 0;
 	struct sockaddr_in si_other_rssi;
 	struct sockaddr_in source_addr;	
@@ -181,7 +182,7 @@ int main(int argc, char *argv[]) {
 	
 	wifibroadcast_rx_status_forward_t wbcdata;
 
-	int number_cards = t->wifi_adapter_cnt;
+	//int number_cards = t->wifi_adapter_cnt;
 
 	bzero(&wbcdata, sizeof(wbcdata));
 	
@@ -197,6 +198,7 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 	
+	long double a[4], b[4];
 	for(;;) {
 		
 		// 1. /wifibroadcast_rx_status_0 (video rx)
@@ -241,9 +243,9 @@ int main(int argc, char *argv[]) {
 		
 		// 6. wrt status	// rssitx/rssirx mod
 		wbcdata.cpuload_airwrt = t_sysair->cpuload_wrt;
-		wbcdata.temp_airwrt = t_sysair->temp_air;
+		wbcdata.temp_airwrt = t_sysair->temp_wrt;
 		
-		int fp;
+		FILE *fp;
 		fp = fopen("/proc/stat","r");
 		fscanf(fp,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);
 		fclose(fp);
