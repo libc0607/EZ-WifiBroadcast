@@ -14,28 +14,29 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/resource.h>
 #include "fec.h"
 #include "lib.h"
 #include "wifibroadcast.h"
-#include <netpacket/packet.h>
+#include "xxtea.h"
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <iniparser.h>
+#include <limits.h>
 #include <net/if.h>
 #include <netinet/ether.h>
-#include <arpa/inet.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <termios.h>
+#include <netpacket/packet.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
-#include <getopt.h>
-#include <limits.h>
-#include <iniparser.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <time.h>
+#include <unistd.h>
 
 #define MAX_PACKET_LENGTH 4192
 #define MAX_USER_PACKET_LENGTH 2278
@@ -146,17 +147,19 @@ void usage(void) {
 		"\n"
 		"config.ini example:\n"
 		"[tx]\n"
-		"port=0             # Port number 0-255 (default 0)\n"
-		"datanum=8          # Number of data packets in a block (default 8). Needs to match with rx\n"
-		"fecnum=4           # Number of FEC packets per block (default 4). Needs to match with rx\n"
-		"packetsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
-		"frametype=0        # Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
-		"wifimode=0		      # Wi-Fi mode. 0=802.11g 0=802.11n"
-		"ldpc=0		          # 1-Use LDPC encode, 0-default. Experimental. Only valid when wifimode=n and both your Wi-Fi cards support LDPC."
-		"rate=6               # When wifimode=g, data rate to send frames with. Choose 1,2,5,6,11,12,18,24,36 Mbit\n"
-		"                     # When wifimode=n, mcs index, 0~7\n"
-		"mode=0             # Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
-		"nic=wlan0          # Wi-Fi interface\n"
+		"port=0\t\t\t\t# Port number 0-255 (default 0)\n"
+		"datanum=8\t\t\t# Number of data packets in a block (default 8). Needs to match with rx\n"
+		"fecnum=4\t\t\t# Number of FEC packets per block (default 4). Needs to match with rx\n"
+		"packetsize=1024\t\t\t# Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
+		"frametype=0\t\t\t# Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
+		"wifimode=0\t\t\t# Wi-Fi mode. 0=802.11g 0=802.11n\n"
+		"ldpc=0\t\t\t\t# 1-Use LDPC encode, 0-default. Experimental. Only valid when wifimode=n and both your Wi-Fi cards support LDPC.\n"
+		"rate=6\t\t\t\t# When wifimode=g, data rate to send frames with. Choose 1,2,5,6,11,12,18,24,36 Mbit\n"
+		"\t\t\t\t# When wifimode=n, mcs index, 0~7\n"
+		"mode=0\t\t\t\t# Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
+		"nic=wlan0\t\t\t# Wi-Fi interface\n"
+		"encrypt=1\t\t\t# enable encrypt. Note that when encrypt is enabled, the actual payload length will be reduced by 4\n"
+		"password=yarimasune1919810\n"
 		, 1024, MAX_USER_PACKET_LENGTH
 	);
     exit(1);
@@ -328,18 +331,25 @@ void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_l
 						uint8_t *packet_transmit_buffer, int packet_header_len, 
 						int data_packets_per_block, int fec_packets_per_block, 
 						int num_interfaces, int param_transmission_mode, 
-						telemetry_data_t *td1) 
+						telemetry_data_t *td1,
+						int enable_encrypt, char * encrypt_password) 
 {
 	int i;
 	uint8_t *data_blocks[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK];
 	uint8_t fec_pool[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK][MAX_USER_PACKET_LENGTH];
 	uint8_t *fec_blocks[MAX_DATA_OR_FEC_PACKETS_PER_BLOCK];
-
-	for(i=0; i<data_packets_per_block; ++i) {
-		data_blocks[i] = pbl[i].data;
+	size_t enc_len;
+	
+	for (i=0; i<data_packets_per_block; ++i) {
+		if (enable_encrypt == 1 && encrypt_password != NULL) {
+			data_blocks[i] = xxtea_encrypt(pbl[i].data, packet_length, encrypt_password, &enc_len);
+			packet_length += 4;
+		} else if (enable_encrypt == 0){
+			data_blocks[i] = pbl[i].data;
+		}
 	}
 
-	if(fec_packets_per_block) {
+	if (fec_packets_per_block) {
 		for(i=0; i<fec_packets_per_block; ++i) {
 			fec_blocks[i] = fec_pool[i];
 		}
@@ -397,6 +407,16 @@ void pb_transmit_block(packet_buffer_t *pbl, int *seq_nr, int port, int packet_l
 	//reset the length back
 	for(i=0; i< data_packets_per_block; ++i) {
 			pbl[i].len = 0;
+	}
+	
+	// free the buffer if encrypt is enabled
+	if (enable_encrypt == 1) {
+		for(i=0; i< data_packets_per_block; ++i) {
+				free(data_blocks[i]);
+		}
+		for(i=0; i< fec_packets_per_block; ++i) {
+				free(fec_blocks[i]);
+		}		
 	}
 
 }
@@ -471,6 +491,8 @@ int main(int argc, char *argv[]) {
     int param_data_rate = 99;
     int param_transmission_mode = 0;
 	int param_wifi_mode = 0;
+	int param_encrypt_enable = 0;
+	char * param_encrypt_password = NULL;
 	
 	if (argc != 2) {
 		usage();
@@ -484,7 +506,19 @@ int main(int argc, char *argv[]) {
 	
 	param_fec_packets_per_block = iniparser_getint(ini, "tx:fecnum", 0);
 	param_data_packets_per_block = iniparser_getint(ini, "tx:datanum", 0); 
+	
+	/*
+	 * Note: "tx:packetsize" is the length that actually send to air
+	 * packetsize mod 4 should be 0 (for xxtea-encrypt compatible)
+	 * if encrypt is enabled, the valid data length in each packet decreased by 4 
+	*/
 	param_packet_length = iniparser_getint(ini, "tx:packetsize", 0);
+	param_encrypt_enable = iniparser_getint(ini, "tx:encrypt", 0);
+	if (param_encrypt_enable == 1) {
+		param_encrypt_password = (char *)iniparser_getstring(ini, "tx:password", NULL);
+		param_packet_length -= 4;	// xxtea-c library has a 4 bytes header
+	}
+		
 	param_port = iniparser_getint(ini, "tx:port", 0);
 	param_packet_type = iniparser_getint(ini, "tx:frametype", 0);
 	param_data_rate = iniparser_getint(ini, "tx:rate", 0);
@@ -499,21 +533,23 @@ int main(int argc, char *argv[]) {
 		}
 	} 
 
-	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, transmode %d, wifimode %d, nic %s\n",
+	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, transmode %d, wifimode %d, nic %s, encrypt %d\n",
 			argv[0], param_data_packets_per_block, param_fec_packets_per_block, param_packet_length,
 			param_port, param_packet_type, param_data_rate, param_transmission_mode, param_wifi_mode, 
-			iniparser_getstring(ini, "tx:nic", NULL));
+			iniparser_getstring(ini, "tx:nic", NULL), param_encrypt_enable);
 
     if (param_packet_length > MAX_USER_PACKET_LENGTH) {
 		fprintf(stderr, "ERROR; Packet length is limited to %d bytes (you requested %d bytes)\n", MAX_USER_PACKET_LENGTH, param_packet_length);
 		return (1);
     }
-
+	if ((param_packet_length % 4) != 0) {
+		fprintf(stderr, "ERROR: packetsize must be an integer multiple of 4; Use default 1024.");
+		param_packet_length = 1024;
+	}
     if (param_min_packet_length > param_packet_length) {
 		fprintf(stderr, "ERROR; Minimum packet length is higher than maximum packet length (%d > %d)\n", param_min_packet_length, param_packet_length);
 		return (1);
     }
-
     if (param_data_packets_per_block > MAX_DATA_OR_FEC_PACKETS_PER_BLOCK || param_fec_packets_per_block > MAX_DATA_OR_FEC_PACKETS_PER_BLOCK) {
 		fprintf(stderr, "ERROR: Data and FEC packets per block are limited to %d (you requested %d data, %d FEC)\n", MAX_DATA_OR_FEC_PACKETS_PER_BLOCK, param_data_packets_per_block, param_fec_packets_per_block);
 		return (1);
@@ -531,7 +567,7 @@ int main(int argc, char *argv[]) {
     telemetry_data_t td;
     telemetry_init(&td);
 
-    int x = optind;
+    //int x = optind;
     int num_interfaces = 0;
 /* 
     while(x < argc && num_interfaces < 4) {
@@ -543,7 +579,7 @@ int main(int argc, char *argv[]) {
 */
 	// ini supports only support one interface now
 	// should be fixed later
-	socks[num_interfaces] = open_sock(iniparser_getstring(ini, "tx:nic", NULL));
+	socks[num_interfaces] = open_sock((char *)iniparser_getstring(ini, "tx:nic", NULL));
 	num_interfaces = 1;
 	usleep(20000);
 	
@@ -597,7 +633,8 @@ int main(int argc, char *argv[]) {
 									param_packet_length, packet_transmit_buffer, 
 									packet_header_length, param_data_packets_per_block, 
 									param_fec_packets_per_block, num_interfaces, 
-									param_transmission_mode, &td);
+									param_transmission_mode, &td,
+									param_encrypt_enable, param_encrypt_password);
 				fifo[0].curr_pb = 0;
 			} else {
 				fifo[0].curr_pb++;

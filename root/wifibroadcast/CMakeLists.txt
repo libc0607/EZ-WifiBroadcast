@@ -28,7 +28,7 @@ add_executable(tx_telemetry  tx_telemetry.c  lib.c  fec.c)
 target_link_libraries(tx_telemetry rt pcap iniparser)
 install (TARGETS tx_telemetry DESTINATION bin)
 
-add_executable(tx_measure  tx_measure.c  lib.c  fec.c)
+add_executable(tx_measure  tx_measure.c  lib.c  fec.c xxtea.c)
 target_link_libraries(tx_measure rt pcap iniparser)
 install (TARGETS tx_measure DESTINATION bin)
 
