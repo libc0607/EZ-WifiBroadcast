@@ -20,7 +20,7 @@ add_executable(rssitx  rssitx.c  lib.c  radiotap.c )
 target_link_libraries(rssitx rt pcap iniparser)
 install (TARGETS rssitx DESTINATION bin)
 
-add_executable(tx_rawsock  tx_rawsock.c  lib.c  fec.c)
+add_executable(tx_rawsock  tx_rawsock.c  lib.c  fec.c xxtea.c)
 target_link_libraries(tx_rawsock rt pcap iniparser)
 install (TARGETS tx_rawsock DESTINATION bin)
 
