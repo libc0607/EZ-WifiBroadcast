@@ -11,3 +11,7 @@ OpenWrt code at [libc0607/lede:air](https://github.com/libc0607/lede/tree/air)
 OpenWrt packages at [libc0607/yjsnpi-broadcast-openwrt](https://github.com/libc0607/yjsnpi-broadcast-openwrt)  
   
 Test firmware download at [Telegram channel: YJSNPI-Broadcast Firmware release](https://t.me/yjsnpi_broadcast)  
+
+Test hardware at [LCEDA: Pi0-Widora-Video](https://lceda.cn/libc0607/pi0-widora-video)  
+
+zh-cn introduction: [模友之吧：EZ-WifiBroadcast 在 OpenWrt 上的移植与修改 另一种数字图传思路](http://www.moz8.com/thread-177797-1-1.html)  
