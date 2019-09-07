@@ -452,10 +452,7 @@ void pb_transmit_block (packet_buffer_t *pbl, int *seq_nr, int port,
 	if (enable_encrypt == 1) {
 		for(i=0; i< data_packets_per_block; ++i) {
 			free(data_blocks[i]);
-		}
-		for(i=0; i< fec_packets_per_block; ++i) {
-			free(fec_blocks[i]);
-		}		
+		}	
 	}
 
 }
