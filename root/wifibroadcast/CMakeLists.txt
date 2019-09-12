@@ -4,7 +4,7 @@ project (ezwifibroadcast)
 
 add_definitions(-Wall -D _GNU_SOURCE)
 
-add_executable(rx  rx.c  lib.c  radiotap.c  fec.c)
+add_executable(rx  rx.c  lib.c  radiotap.c  fec.c xxtea.c)
 target_link_libraries(rx rt pcap iniparser)
 install (TARGETS rx DESTINATION bin)
 

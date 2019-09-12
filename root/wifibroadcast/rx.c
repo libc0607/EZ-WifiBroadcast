@@ -17,6 +17,7 @@
 #include "lib.h"
 #include "wifibroadcast.h"
 #include "radiotap.h"
+#include "xxtea.h"
 #include <time.h>
 #include <sys/resource.h>
 #include <limits.h>
@@ -55,11 +56,12 @@ int max_block_num = -1;
 struct sockaddr_in udp_send_addr;
 struct sockaddr_in udp_bind_addr;	
 int udp_sockfd, slen = sizeof(udp_send_addr);
-int save_fd;
+FILE * save_fd;
 int param_recording_en;
 char *param_recording_path;
-//int param_data_rate;
-//int param_transmission_mode;
+int param_wifi_mode = 0;
+int param_encrypt_enable = 0;
+char * param_encrypt_password = NULL;
 
 long long current_timestamp() {
     struct timeval te; 
@@ -106,6 +108,8 @@ void usage(void) {
 		"\tpacketsize=1024    # Number of bytes per packet (default %d, max. %d). This is also the FEC block size. Needs to match with rx\n"
 		"\tbufsize=1          # Number of transmissions blocks that are buffered (default 1). This is needed in case of diversity if one\n"
 		"\tnic=wlan0          # Wi-Fi interface\n"
+		"\tencrypt=1          # enable encrypt. Note that when encrypt is enabled, the actual payload length will be reduced by 4\n"
+		"\tpassword=yarimasune1919810\n"
 		, 1024, MAX_USER_PACKET_LENGTH
 	);
 	exit(1);
@@ -366,13 +370,35 @@ void process_payload(uint8_t *data, size_t data_len, int crc_correct,
                 payload_header_t *ph = (payload_header_t*)data_blocks[i];
                 if (!reconstruction_failed || data_pkgs[i]->valid) {
                     //if reconstruction did fail, the data_length value is undefined. better limit it to some sensible value
-                    if (ph->data_length > param_packet_length) 
+                    if (ph->data_length > param_packet_length) {
 						ph->data_length = param_packet_length;
-					sendto(udp_sockfd, data_blocks[i] + sizeof(payload_header_t), ph->data_length, 
-							0, (struct sockaddr*)&udp_send_addr, slen);
-					if (param_recording_en) {
-						write(save_fd, data_blocks[i] + sizeof(payload_header_t), ph->data_length);
 					}
+					
+					// decrypt data if needed
+					uint8_t * p_write_data;
+					size_t write_data_length;
+					if (param_encrypt_enable) {
+						p_write_data = xxtea_decrypt(data_blocks[i] + sizeof(payload_header_t),
+											ph->data_length, param_encrypt_password, &write_data_length);
+					} else {
+						p_write_data = data_blocks[i] + sizeof(payload_header_t);
+						write_data_length = ph->data_length;
+					}
+					
+					// write it to udp & file
+					if (p_write_data != NULL) {
+						sendto(udp_sockfd, p_write_data, write_data_length, 
+								0, (struct sockaddr*)&udp_send_addr, slen);
+						if (param_recording_en) {
+							write((int)save_fd, p_write_data, write_data_length);
+						}
+					}
+					
+					// free memory if encrypt enabled
+					if (param_encrypt_enable && (p_write_data != NULL)) {
+						free(p_write_data);
+					}
+					
 					//write(STDOUT_FILENO, data_blocks[i] + sizeof(payload_header_t), ph->data_length);
 					//fflush(stdout);
 					now = current_timestamp();
@@ -437,7 +463,9 @@ void process_packet(monitor_interface_t *interface, block_buffer_t *block_buffer
 	int n;
 	int retval;
 	int u16HeaderLen;
-
+	
+	bzero(&prd, sizeof(prd));
+	
 	retval = pcap_next_ex(interface->ppcap, &ppcapPacketHeader, 
 								(const u_char**)&pu8Payload); // receive
 
@@ -566,7 +594,6 @@ void status_memory_init(wifibroadcast_rx_status_t *s)
 	}
 }
 
-
 wifibroadcast_rx_status_t *status_memory_open(void) 
 {
 	char buf[128];
@@ -598,7 +625,8 @@ wifibroadcast_rx_status_t *status_memory_open(void)
 	return tretval;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) 
+{
 	setpriority(PRIO_PROCESS, 0, -10);
 
 	monitor_interface_t interfaces[MAX_PENUMBRA_INTERFACES];
@@ -623,10 +651,23 @@ int main(int argc, char *argv[]) {
 	param_packet_length = iniparser_getint(ini, "rx:packetsize", 0);
 	param_port = iniparser_getint(ini, "rx:port", 0);
 	param_block_buffers = iniparser_getint(ini, "rx:bufsize", 0);
-//	param_data_rate = iniparser_getint(ini, "rx:rate", 0);
-//	param_transmission_mode = iniparser_getint(ini, "rx:mode", 0);
 	param_recording_en = iniparser_getint(ini, "rx:recording", 0);
-	param_recording_path = iniparser_getstring(ini, "rx:recording_dir", NULL);
+	param_recording_path = (char *)iniparser_getstring(ini, "rx:recording_dir", NULL);
+	/*
+	 * Note: "rx:packetsize" is the length that actually in air
+	 * packetsize mod 4 should be 0 (for xxtea-encrypt compatible)
+	 * if encrypt is enabled, the valid data length in each packet decreased by 4 
+	*/
+	param_packet_length = iniparser_getint(ini, "rx:packetsize", 0);		
+	param_encrypt_enable = iniparser_getint(ini, "rx:encrypt", 0);
+	if (param_encrypt_enable == 1) {
+		param_encrypt_password = (char *)iniparser_getstring(ini, "tx:password", NULL);
+		//param_packet_length -= 4;	// xxtea-c library has a 4 bytes header
+	}
+	if ((param_packet_length % 4) != 0) {
+		fprintf(stderr, "ERROR: packetsize must be an integer multiple of 4; Use default 1024.");
+		param_packet_length = 1024;
+	}
 	if (param_packet_length > MAX_USER_PACKET_LENGTH) {
 		printf("Packet length is limited to %d bytes (you requested %d bytes)\n", 
 								MAX_USER_PACKET_LENGTH, param_packet_length);
@@ -649,7 +690,7 @@ int main(int argc, char *argv[]) {
 
 	rx_status = status_memory_open();
 
-	int x = optind;
+	//int x = optind;
 
 	char path[45], line[100];
 	FILE* procfile;
@@ -694,10 +735,6 @@ int main(int argc, char *argv[]) {
 	usleep(10000);
 	rx_status->wifi_adapter_cnt = 1;
 	
-	
-
-	
-
 	//block buffers contain both the block_num as well as packet buffers for a block.
 	block_buffer_list = malloc(sizeof(block_buffer_t) * param_block_buffers);
 	for(i=0; i<param_block_buffers; ++i) {
@@ -745,3 +782,4 @@ int main(int argc, char *argv[]) {
 	close(udp_sockfd);
 	return (0);
 }
+
