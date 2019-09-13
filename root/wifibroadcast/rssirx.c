@@ -15,6 +15,8 @@
  */
 #include "lib.h"
 #include "radiotap.h"
+#include "xxtea.h"
+#include <iniparser.h>
 #include <time.h>
 #include <sys/resource.h>
 
@@ -29,6 +31,8 @@ typedef struct  {
 
 
 int flagHelp = 0;
+int param_encrypt_enable = 0;
+char * param_encrypt_password = NULL;
 
 wifibroadcast_rx_status_t *rx_status = NULL;
 wifibroadcast_rx_status_t_rc *rx_status_rc = NULL;
@@ -37,9 +41,12 @@ wifibroadcast_rx_status_t_sysair *rx_status_sysair = NULL;
 void usage(void) {
 	printf(
 	    "rssirx by Rodizio. Based on wifibroadcast rx by Befinitiv. Licensed under GPL2\n\n"
-	    "Usage: rssirx <interfaces>\n\n"
-	    "Example:\n"
-	    "  rssirx wlan0 (receive standard DATA frames on wlan0)\n\n");
+	    "Usage: rssirx <config.file>\n\n"
+	    "config example:\n"
+		"[rssirx]\n"
+		"nic=wlan0\n"
+		"encrypt=1\n"
+		"password=1919810\n\n");
 	exit(1);
 }
 
@@ -50,7 +57,8 @@ typedef struct {
 } monitor_interface_t;
 
 
-void open_and_configure_interface(const char *name, monitor_interface_t *interface) {
+void open_and_configure_interface(const char *name, monitor_interface_t *interface) 
+{
 	struct bpf_program bpfprogram;
 	char szProgram[512];
 	char szErrbuf[PCAP_ERRBUF_SIZE];
@@ -94,8 +102,6 @@ void open_and_configure_interface(const char *name, monitor_interface_t *interfa
 	interface->selectable_fd = pcap_get_selectable_fd(interface->ppcap);
 }
 
-
-
 uint8_t process_packet(monitor_interface_t *interface, int adapter_no) {
 	struct pcap_pkthdr * ppcapPacketHeader = NULL;
 	struct ieee80211_radiotap_iterator rti;
@@ -104,6 +110,8 @@ uint8_t process_packet(monitor_interface_t *interface, int adapter_no) {
 	u8 *pu8Payload = payloadBuffer;
 	int bytes, n, retval, u16HeaderLen;
 
+	bzero(&prd, sizeof(prd));
+	
 	struct payloaddata_s {
 	    int8_t signal;
 	    uint32_t lostpackets;
@@ -137,18 +145,23 @@ uint8_t process_packet(monitor_interface_t *interface, int adapter_no) {
 		}
 	}
 
-	if (retval != 1) return 0;
+	if (retval != 1) 
+		return 0;
 
 	// fetch radiotap header length from radiotap header (seems to be 36 for Atheros and 18 for Ralink)
 	u16HeaderLen = (pu8Payload[2] + (pu8Payload[3] << 8));
 //	fprintf(stderr, "u16headerlen: %d\n", u16HeaderLen);
 //	fprintf(stderr, "ppcapPacketHeader->len: %d\n", ppcapPacketHeader->len);
-	if (ppcapPacketHeader->len < (u16HeaderLen + interface->n80211HeaderLength)) exit(1);
+	if (ppcapPacketHeader->len < (u16HeaderLen + interface->n80211HeaderLength)) 
+		exit(1);
 
 	bytes = ppcapPacketHeader->len - (u16HeaderLen + interface->n80211HeaderLength);
 
-	if (bytes < 0) return(0);
-	if (ieee80211_radiotap_iterator_init(&rti, (struct ieee80211_radiotap_header *)pu8Payload, ppcapPacketHeader->len) < 0) exit(1);
+	if (bytes < 0) 
+		return(0);
+	if (ieee80211_radiotap_iterator_init(&rti, (struct ieee80211_radiotap_header *)pu8Payload, 
+										ppcapPacketHeader->len) < 0) 
+		exit(1);
 
 	while ((n = ieee80211_radiotap_iterator_next(&rti)) == 0) {
 		switch (rti.this_arg_index) {
@@ -161,7 +174,30 @@ uint8_t process_packet(monitor_interface_t *interface, int adapter_no) {
 		}
 	}
 	pu8Payload += u16HeaderLen + interface->n80211HeaderLength;
-	memcpy(&payloaddata,pu8Payload,38); // copy payloaddata (signal, lost packets count, cpuload, temp, ....) to struct
+	
+	// decrypt if needed
+	uint8_t * p_write_data;
+	size_t write_data_length;
+	// decrypt length: min( (smallest value (bigger than sizeof(payloaddata) & divided by 4))+4,
+	//								bytes)
+	if (param_encrypt_enable) {
+		int decrypt_length = ( (sizeof(payloaddata)/4) +2)*4;
+		if (decrypt_length != bytes) {
+			fprintf(stderr, "Warning: the packet length is not equal to that we need(got %d, expected %d). Maybe rssitx is not the same version?\n", bytes, decrypt_length);
+		}
+		decrypt_length = (decrypt_length > bytes)? bytes: decrypt_length;
+		p_write_data = xxtea_decrypt(pu8Payload, decrypt_length, 
+								param_encrypt_password, &write_data_length);
+	} else {
+		p_write_data = pu8Payload;
+		write_data_length = sizeof(payloaddata);
+	}
+	// copy payloaddata (signal, lost packets count, cpuload, temp, ....) to struct
+	memcpy(&payloaddata, p_write_data, write_data_length); 
+	// free memory
+	if (param_encrypt_enable) {
+		free(p_write_data);
+	}
 
 //	printf ("signal:%d\n",payloaddata.signal);
 //	printf ("lostpackets:%d\n",payloaddata.lostpackets);
@@ -246,7 +282,6 @@ void status_memory_init_sysair(wifibroadcast_rx_status_t_sysair *s) {
 	s->undervolt = 0;
 }
 
-
 wifibroadcast_rx_status_t *status_memory_open(void) {
 	char buf[128];
 	int fd;
@@ -286,50 +321,45 @@ wifibroadcast_rx_status_t_sysair *status_memory_open_sysair(void) {
 	return tretval;
 }
 
-
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) 
+{
 	printf("RSSI RX started\n");
 	setpriority(PRIO_PROCESS, 0, 10);
 
 	monitor_interface_t interfaces[8];
 	int num_interfaces = 0;
 	int i;
-	int result = 0;
-
-	while (1) {
-		int nOptionIndex;
-		static const struct option optiona[] = { { "help", no_argument, &flagHelp, 1 }, { 0, 0, 0, 0 } };
-		int c = getopt_long(argc, argv, "h:", optiona, &nOptionIndex);
-		if (c == -1) break;
-		switch (c) {
-		case 0: // long option
-			break;
-		case 'h': // help
-			usage();
-		default:
-			fprintf(stderr, "unknown switch %c\n", c);
-			usage();
-		}
+	//int result;
+	
+	if (argc !=2) {
+		usage();
 	}
-
-	if (optind >= argc) usage();
-	int x = optind;
-	while(x < argc && num_interfaces < 8) {
-		open_and_configure_interface(argv[x], interfaces + num_interfaces);
-		++num_interfaces;
-		++x;
-		usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	if (!ini) {
+		fprintf(stderr,"iniparser: failed to load %s.\n", file);
+		exit(1);
 	}
-
+	
+	// support only one wi-fi interface; will be fixed later (¹¾¹¾¹¾)
+	open_and_configure_interface((char *)iniparser_getstring(ini, "rssirx:nic", NULL), 
+									interfaces + num_interfaces);
+	++num_interfaces;
+	usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
+	
+	param_encrypt_enable = iniparser_getint(ini, "rssitx:encrypt", 0);
+	if (param_encrypt_enable == 1) {
+		param_encrypt_password = (char *)iniparser_getstring(ini, "rssitx:password", NULL);
+	}
+	
 	rx_status = status_memory_open();
 	rx_status->wifi_adapter_cnt = num_interfaces;
-
 	rx_status_rc = status_memory_open_rc();
 	rx_status_rc->wifi_adapter_cnt = num_interfaces;
-
 	rx_status_sysair = status_memory_open_sysair();
-
-	for(;;) {
+	
+	int fd_sum = 0;
+	for (;;) {
 		fd_set readset;
 		struct timeval to;
 
@@ -337,18 +367,21 @@ int main(int argc, char *argv[]) {
 		to.tv_usec = 1e5;
 	
 		FD_ZERO(&readset);
-		for(i=0; i<num_interfaces; ++i)
+		for (i=0; i<num_interfaces; ++i) {
 			FD_SET(interfaces[i].selectable_fd, &readset);
+			fd_sum += interfaces[i].selectable_fd;
+		}
 
-		int n = select(30, &readset, NULL, NULL, &to);
+		int n = select(fd_sum+1, &readset, NULL, NULL, &to);
 
-		for(i=0; i<num_interfaces; ++i) {
-			if(n == 0) {
+		for (i=0; i<num_interfaces; ++i) {
+			if (n == 0) {
 //			    printf("n == 0\n");
 		    	    //break;
 			}
-			if(FD_ISSET(interfaces[i].selectable_fd, &readset)) {
-			    result = process_packet(interfaces + i, i);
+			if (FD_ISSET(interfaces[i].selectable_fd, &readset)) {
+			    //result = process_packet(interfaces + i, i);
+				process_packet(interfaces + i, i);
 			}
 		}
 	}
