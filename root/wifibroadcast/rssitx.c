@@ -1,23 +1,28 @@
 // rssitx by Rodizio (c) 2017. Licensed under GPL2
 // reads rssi from shared mem and sends it out on wifi interfaces (for R/C and telemetry uplink RSSI)
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/resource.h>
-#include <termios.h>
+
+// Mod by @libc0607
+
+#include "lib.h"
+#include "xxtea.h"
 #include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <pcap.h>
-#include <stdint.h>
-#include <sys/ioctl.h>
-#include <netpacket/packet.h>
+#include <getopt.h>
+#include <iniparser.h>
+#include <inttypes.h>
 #include <net/if.h>
 #include <netinet/ether.h>
-#include <string.h>
-#include <getopt.h>
-#include "lib.h"
-#include <inttypes.h>
+#include <netpacket/packet.h>
+#include <pcap.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <termios.h>
+#include <unistd.h>
 
 char *ifname = NULL;
 int flagHelp = 0;
@@ -26,7 +31,9 @@ int sock=0;
 int socks[5];
 
 bool no_signal, no_signal_rc;
-
+int param_encrypt_enable = 0;
+char * param_encrypt_password = NULL;
+	
 struct framedata_s {
     uint8_t rt1;
     uint8_t rt2;
@@ -91,22 +98,6 @@ struct framedata_s {
 
 struct framedata_s framedata;
 
-
-void usage(void)
-{
-    printf(
-        "rssitx by Rodizio.\n"
-		"Dirty mod by Github @libc0607\n"
-        "\n"
-        "Usage: rssitx <interface>\n"
-        "\n"
-        "Example:\n"
-        "  rssitx wlan0\n"
-        "\n");
-    exit(1);
-}
-
-
 static int open_sock (char *ifname) 
 {
     struct sockaddr_ll ll_addr;
@@ -164,7 +155,7 @@ void sendRSSI(int sock, telemetry_data_t *td)
 		int best_dbm = -127;
 		int best_dbm_rc = -127;
 		int cardcounter = 0;
-		int number_cards = td->rx_status->wifi_adapter_cnt;
+		//int number_cards = td->rx_status->wifi_adapter_cnt;
 		int number_cards_rc = td->rx_status_rc->wifi_adapter_cnt;
 
 		no_signal_rc=true;
@@ -235,15 +226,31 @@ void sendRSSI(int sock, telemetry_data_t *td)
 	printf("signal_rc: %d\n", framedata.signal_rc);
 //	printf("lostpackets: %d\n", framedata.lostpackets);
 //	printf("lostpackets_rc: %d\n", framedata.lostpackets_rc);
+
+	// encrypt packet if needed
+	uint8_t * p_send_data = NULL;
+	size_t send_data_length;
+	if (param_encrypt_enable) {
+		p_send_data = xxtea_encrypt(&framedata, sizeof(framedata), param_encrypt_password, &send_data_length);
+	} else {
+		p_send_data = (uint8_t *)&framedata;
+		send_data_length = sizeof(framedata);
+	}
+	
 	// send three times with different delay in between to increase robustness against packetloss
-	if (write(socks[0], &framedata, sizeof(framedata)) < 0 ) 
+	if (write(socks[0], p_send_data, send_data_length) < 0 ) 
 		fprintf(stderr, "!");
 	usleep(1500);
-	if (write(socks[0], &framedata, sizeof(framedata)) < 0 ) 
+	if (write(socks[0], p_send_data, send_data_length) < 0 ) 
 		fprintf(stderr, "!");
 	usleep(2000);
-	if (write(socks[0], &framedata, sizeof(framedata)) < 0 ) 
+	if (write(socks[0], p_send_data, send_data_length) < 0 ) 
 		fprintf(stderr, "!");
+	
+	// free memory if encrypt enabled
+	if (param_encrypt_enable) {
+		free(p_send_data);
+	}
 }
 
 
@@ -315,7 +322,24 @@ void telemetry_init(telemetry_data_t *td) {
 	td->tx_status = telemetry_wbc_status_memory_open_tx();
 }
 
-int main (int argc, char *argv[]) {
+void usage(void) {
+	printf(
+		"rssitx by Rodizio.\n"
+		"Dirty mod by Github @libc0607\n"
+        "\n"
+        "Usage: rssitx <config.file>\n"
+		"config example:\n"
+		"[rssitx]\n"
+		"nic=wlan0\n"
+		"encrypt=1\n"
+		"password=1919810\n\n"
+		
+	);
+    exit(1);
+}
+
+int main (int argc, char *argv[]) 
+{
 	setpriority(PRIO_PROCESS, 0, 10);
 
 	int done = 1;
@@ -325,8 +349,23 @@ int main (int argc, char *argv[]) {
 	int cts;
 
 //	fprintf(stderr,"RSSI TX started\n");
-	socks[0] = open_sock(argv[1]);
+	if (argc !=2) {
+		usage();
+	}
+	char *file = argv[1];
+	dictionary *ini = iniparser_load(file);
+	if (!ini) {
+		fprintf(stderr,"iniparser: failed to load %s.\n", file);
+		exit(1);
+	}
 	
+	socks[0] = open_sock((char *)iniparser_getstring(ini, "rssitx:nic", NULL));
+		
+	param_encrypt_enable = iniparser_getint(ini, "rssitx:encrypt", 0);
+	if (param_encrypt_enable == 1) {
+		param_encrypt_password = (char *)iniparser_getstring(ini, "rssitx:password", NULL);
+	}
+		
 	pFile = fopen ("/tmp/bitrate_kbit", "r");
 	if (NULL == pFile) {
 		perror("ERROR: Could not open /tmp/bitrate_kbit");
@@ -429,5 +468,6 @@ int main (int argc, char *argv[]) {
 		framedata.temp = t_sysair->temp;
 		sendRSSI(sock, &td);
 	}
+	iniparser_freedict(ini);
 	return 0;
 }
