@@ -20,6 +20,7 @@
 #include "lib.h"
 #include "wifibroadcast.h"
 #include "radiotap.h"
+#include "xxtea.h"
 #include <time.h>
 #include <sys/resource.h>
 #include <fcntl.h>        // serialport
@@ -57,6 +58,8 @@ int param_recording_en;
 char * param_recording_dir;
 char recording_dir_buf[128];
 char *param_nic;
+int param_encrypt_enable = 0;
+char * param_encrypt_password = NULL;
 int save_fd;
 
 uint32_t seqno_telemetry = 0;
@@ -107,9 +110,11 @@ void usage(void) {
 	    "Dirty mod by libc0607@Github\n"
 		"\n"
 		"config.ini example:\n"
-		"\t[rx_telemetry]\n"
-		"\tport=1             # Port number 0-255 (default 0)\n"
-		"\nic=wlan0           # Wi-Fi interface\n"
+		"[rx_telemetry]\n"
+		"port=1             # Port number 0-255 (default 0)\n"
+		"nic=wlan0           # Wi-Fi interface\n"
+		"encrypt=1\n"
+		"password=1919810\n\n"
 );
 	exit(1);
 }
@@ -195,9 +200,11 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
     int n;
     int retval;
     int u16HeaderLen;
-    int type = 0; // r/c or telemetry
+    //int type = 0; // r/c or telemetry
     int dbm_tmp;
 
+	bzero(&prd, sizeof(prd));
+	
     retval = pcap_next_ex(interface->ppcap, &ppcapPacketHeader, (const u_char**)&pu8Payload); // receive
     if (retval < 0) {
 		if (strcmp("The interface went down",pcap_geterr(interface->ppcap)) == 0) {
@@ -220,17 +227,17 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
     case 0xbf: // rts (R/C)
 //	fprintf(stderr, "rts R/C frame\n");
         interface->n80211HeaderLength = 0x04;
-	type = 0;
+		//type = 0;
         break;
     case 0x01: // data short, rts (telemetry)
 //	fprintf(stderr, "data short or rts telemetry frame\n");
         interface->n80211HeaderLength = 0x05;
-	type = 1;
+		//type = 1;
         break;
     case 0x02: // data (telemetry)
 //	fprintf(stderr, "data telemetry frame\n");
         interface->n80211HeaderLength = 0x18;
-	type = 1;
+		//type = 1;
         break;
     default:
         break;
@@ -238,35 +245,42 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
     pu8Payload -= u16HeaderLen;
 
 //  fprintf(stderr, "ppcapPacketHeader->len: %d\n", ppcapPacketHeader->len);
-    if (ppcapPacketHeader->len < (u16HeaderLen + interface->n80211HeaderLength)) 
+    if (ppcapPacketHeader->len < (u16HeaderLen + interface->n80211HeaderLength)) {
 		exit(1);
-
+	}
+	
     bytes = ppcapPacketHeader->len - (u16HeaderLen + interface->n80211HeaderLength);
-    if (param_debug == 1) 
-		fprintf(stderr, "len:%d ", bytes);
-    if (bytes < 0) 
+    if (param_debug == 1) {
+		fprintf(stderr, "len:%d ", bytes);		
+	}
+    if (bytes < 0) {
 		exit(1);
+	}
+		
 
     if (ieee80211_radiotap_iterator_init(&rti, (struct ieee80211_radiotap_header *)pu8Payload, 
-														ppcapPacketHeader->len) < 0) 
-		exit(1);
+														ppcapPacketHeader->len) < 0) {
+		exit(1);													
+	}
+		
 
     while ((n = ieee80211_radiotap_iterator_next(&rti)) == 0) {
 		switch (rti.this_arg_index) {
 		case IEEE80211_RADIOTAP_FLAGS:
 			prd.m_nRadiotapFlags = *rti.this_arg;
-		break;
+			break;
 		case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
 	//		fprintf(stderr, "ant signal:%d\n",(int8_t)(*rti.this_arg));
 	//		rx_status->adapter[adapter_no].current_signal_dbm = (int8_t)(*rti.this_arg);
 			dbm_tmp = (int8_t)(*rti.this_arg);
-		break;
+			break;
 		}
     }
 
-    if (param_debug == 1) 
+    if (param_debug == 1) {
 		fprintf(stderr, "dbm:%d ", dbm_tmp);
-
+	}
+		
     rx_status->adapter[adapter_no].current_signal_dbm = dbm_tmp;
     rx_status->adapter[adapter_no].received_packet_cnt++;
     rx_status->last_update = time(NULL);
@@ -280,44 +294,71 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
     for (t=0;t<100;t++) {
 		if (buffer[t].seq == header.seqnumber) { // seqnum has already been received
 			already_received = 1;
-	//	    fprintf(stderr,"already received\n");
+//		    fprintf(stderr,"already received\n");
 		}
     }
 
     if ((already_received == 0) && (header.seqnumber > lastseq)) {
-	int y;
-	int done = 0;
-	for (y=0;y<100;y++) {
-		if (buffer[y].filled == 0) { // buffer is empty, use it
-			memcpy(buffer[y].payload,pu8Payload,header.length);
-			buffer[y].len = header.length;
-			buffer[y].seq = header.seqnumber;
-			buffer[y].filled = 1;
-			if (param_debug == 1) fprintf(stderr,"seq %d->buf[%d] ",buffer[y].seq,y);
-			done = 1;
+		int y;
+		int done = 0;
+		uint8_t * p_write_data;
+		size_t write_data_length;
+		for (y=0;y<100;y++) {
+			if (buffer[y].filled == 0) { 
+				// buffer is empty, use it
+				// decrypt if needed
+				if (param_encrypt_enable) {
+					p_write_data = xxtea_decrypt(pu8Payload, header.length, 
+									param_encrypt_password, &write_data_length);
+				} else {
+					p_write_data = pu8Payload;
+					write_data_length = header.length;
+				}
+				memcpy(buffer[y].payload, p_write_data, write_data_length);
+				if (param_encrypt_enable) {
+					free(p_write_data);
+				}
+				buffer[y].len = write_data_length;
+				buffer[y].seq = header.seqnumber;
+				buffer[y].filled = 1;
+				if (param_debug == 1) 
+					fprintf(stderr,"seq %d->buf[%d] ",buffer[y].seq,y);
+				done = 1;
+			} else {
+				//fprintf(stderr,"buffer[%d] already filled\n",y);
+			}
+			if (done == 1) {
+				//fprintf(stderr,"done!\n");
+				break;
+			}
+		}
+		if (done == 0) { // no empty buffer found, we just use a filled one
+			int randomnum = rand() % 100;
+			// decrypt if needed
+			if (param_encrypt_enable) {
+				p_write_data = xxtea_decrypt(pu8Payload, header.length, 
+								param_encrypt_password, &write_data_length);
+			} else {
+				p_write_data = pu8Payload;
+				write_data_length = header.length;
+			}		
+			memcpy(buffer[randomnum].payload, p_write_data, write_data_length);
+			if (param_encrypt_enable) {
+				free(p_write_data);
+			}
+			buffer[randomnum].len = write_data_length;
+			buffer[randomnum].seq = header.seqnumber;
+			buffer[randomnum].filled = 1;
+			if (param_debug == 1) {
+				fprintf(stderr, "FULL! seq %d->buf[%d] ",buffer[randomnum].seq, randomnum);
+			}	
+
 		} else {
-			//fprintf(stderr,"buffer[%d] already filled\n",y);
-		}
-		if (done == 1) {
-			//fprintf(stderr,"done!\n");
-			break;
+			if (param_debug == 1) {
+				fprintf(stderr,"seq %d dupe ",header.seqnumber);
+			}
 		}
 	}
-	if (done == 0) { // no empty buffer found, we just use a filled one
-		int randomnum = rand() % 100;
-		memcpy(buffer[randomnum].payload,pu8Payload,header.length);
-		buffer[randomnum].len = header.length;
-		buffer[randomnum].seq = header.seqnumber;
-		buffer[randomnum].filled = 1;
-		if (param_debug == 1) 
-			fprintf(stderr,"FULL! seq %d->buf[%d] ",buffer[randomnum].seq,randomnum);
-	}
-
-    } else {
-		if (param_debug == 1) 
-			fprintf(stderr,"seq %d dupe ",header.seqnumber);
-    }
-
 }
 
 void status_memory_init(wifibroadcast_rx_status_t *s) 
@@ -338,7 +379,8 @@ void status_memory_init(wifibroadcast_rx_status_t *s)
 	}
 }
 
-wifibroadcast_rx_status_t *status_memory_open(void) {
+wifibroadcast_rx_status_t *status_memory_open(void) 
+{
 	char buf[128];
 	int fd;
 	
@@ -356,7 +398,8 @@ wifibroadcast_rx_status_t *status_memory_open(void) {
 	return tretval;
 }
 
-wifibroadcast_rx_status_t *status_memory_open_rc(void) {
+wifibroadcast_rx_status_t *status_memory_open_rc(void) 
+{
 	char buf[128];
 	int fd;
 	
@@ -374,7 +417,7 @@ wifibroadcast_rx_status_t *status_memory_open_rc(void) {
 	return tretval;
 }
 
-int main(int argc, char *argv[]) 
+int main (int argc, char *argv[]) 
 {
 	long long prev_time = 0;
 	long long delta = 0;
@@ -403,18 +446,22 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 	
 	param_port = iniparser_getint(ini, "rx_telemetry:port", 0);
-	param_nic = iniparser_getstring(ini, "rx_telemetry:nic", NULL);
-	param_udp_ip = iniparser_getstring(ini, "rx_telemetry:udp_ip", NULL);
+	param_debug = iniparser_getint(ini, "rx_telemetry:debug", 0);
+	param_nic = (char *)iniparser_getstring(ini, "rx_telemetry:nic", NULL);
+	param_udp_ip = (char *)iniparser_getstring(ini, "rx_telemetry:udp_ip", NULL);
 	param_udp_port = iniparser_getint(ini, "rx_telemetry:udp_port", 0);
 	param_udp_bind_port = iniparser_getint(ini, "rx_telemetry:udp_bind_port", 0);
 	param_recording_en = iniparser_getint(ini, "rx_telemetry:recording", 0);
-	param_recording_dir = iniparser_getstring(ini, "rx_telemetry:recording_dir", NULL);
+	param_recording_dir = (char *)iniparser_getstring(ini, "rx_telemetry:recording_dir", NULL);
 	sprintf(recording_dir_buf, "%s/telemetry-%lld.log", param_recording_dir, 
 														current_timestamp());
-	
-	fprintf(stderr, "%s Config: port %d, nic %s, UDP %s:%d bind :%d, recording %d, file %s\n",
+	param_encrypt_enable = iniparser_getint(ini, "rx_telemetry:encrypt", 0);
+	if (param_encrypt_enable == 1) {
+		param_encrypt_password = (char *)iniparser_getstring(ini, "rx_telemetry:password", NULL);
+	}
+	fprintf(stderr, "%s Config: port %d, nic %s, UDP %s:%d bind :%d, recording %d, encrypt %d, file %s\n",
 		argv[0], param_port, param_nic, param_udp_ip, param_udp_port, param_udp_bind_port,
-		param_recording_en, recording_dir_buf
+		param_recording_en, param_encrypt_enable, recording_dir_buf
 	);
 	
 	bzero(&udp_send_addr, slen);
@@ -437,7 +484,7 @@ int main(int argc, char *argv[])
 	}
 	
 	if (param_recording_en) {	
-		save_fd = fopen(recording_dir_buf, "wb");
+		save_fd = (int)fopen(recording_dir_buf, "wb");
 	}
 	
 	// 1. Configure Wi-Fi interface
@@ -608,7 +655,8 @@ int main(int argc, char *argv[])
 
 	}
 	iniparser_freedict(ini);
-	fclose(save_fd);
+	fclose((FILE *)save_fd);
 	close(udp_sockfd);
 	return (0);
-}
+} 
+

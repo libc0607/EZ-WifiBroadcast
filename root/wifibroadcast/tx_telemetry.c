@@ -15,6 +15,7 @@
  */
 #include "lib.h"
 #include "mavlink/common/mavlink.h"
+#include "xxtea.h"
 #include <fcntl.h>
 #include <getopt.h>
 #include <iniparser.h>
@@ -43,13 +44,14 @@ int type[5];
 mavlink_status_t status;
 mavlink_message_t msg;
 
-uint8_t headers_atheros[40]; // header buffer for atheros
-uint8_t headers_ralink[40]; // header buffer for ralink
+
+uint8_t headers_atheros[64]; // header buffer for atheros
+uint8_t headers_ralink[64]; // header buffer for ralink
 int headers_atheros_len = 0;
 int headers_ralink_len = 0;
 
-uint8_t packet_buffer_ath[402]; // wifi packet to be sent (263 + len and seq + radiotap and ieee headers)
-uint8_t packet_buffer_ral[402]; // wifi packet to be sent (263 + len and seq + radiotap and ieee headers)
+uint8_t packet_buffer_ath[512]; // wifi packet to be sent (263 + len and seq + radiotap and ieee headers)
+uint8_t packet_buffer_ral[512]; // wifi packet to be sent (263 + len and seq + radiotap and ieee headers)
 
 // telemetry frame header consisting of seqnr and payload length
 struct header_s {
@@ -150,7 +152,8 @@ static u8 dummydata[] = {
 
 int flagHelp = 0;
 
-void usage(void) {
+void usage(void) 
+{
 	printf(
 	"tx_telemetry Dirty mod by libc0607@Github\n"
 	"\n"
@@ -168,12 +171,15 @@ void usage(void) {
 	"rate=6             	# Data rate to send frames with. Currently only supported with Ralink cards. Choose 6,12,18,24,36 Mbit\n"
 	"mode=0             	# Transmission mode, not used. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
 	"nic=wlan0          	# Wi-Fi interface\n"
+	"encrypt=1				# enable encrypt. Note that when encrypt is enabled, the actual payload length will be reduced by 4\n"
+	"password=yarimasune1919810\n"
 	""
 	);
     exit(1);
 }
 
-wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
+wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) 
+{
     int fd = 0;
 
     fd = shm_open("/wifibroadcast_rx_status_0", O_RDONLY, S_IRUSR | S_IWUSR);
@@ -187,90 +193,128 @@ wifibroadcast_rx_status_t *telemetry_wbc_status_memory_open(void) {
     return (wifibroadcast_rx_status_t*)retval;
 }
 
-void telemetry_init(telemetry_data_t *td) {
+void telemetry_init(telemetry_data_t *td) 
+{
     td->rx_status = telemetry_wbc_status_memory_open();
 }
 
-void sendpacket(uint32_t seqno, uint16_t len, telemetry_data_t *td, int transmission_mode, int num_int, uint8_t data[302]) {
+void sendpacket(uint32_t seqno, uint16_t len, telemetry_data_t *td, 
+				int transmission_mode, int num_int, uint8_t data[512],// ???
+				int encrypt_enable, char * encrypt_password) 	
+{
 	header.seqnumber = seqno;
 	header.length = len;
 //	fprintf(stderr,"seqno: %d",seqno);
 	int padlen = 0;
 	int best_adapter = 0;
-	if(transmission_mode == 1) {
+	
+	// encrypt data
+	uint8_t * p_send_data;
+	size_t send_data_length;
+	if (encrypt_enable) { 
+		p_send_data = xxtea_encrypt(data, len, encrypt_password, &send_data_length);
+	} else {
+		p_send_data = data;
+		send_data_length = len;
+	}
+	
+	if (transmission_mode == 1) {
 	    int i;
 	    int best_dbm = -1000;
 	    // find out which card has best signal
-	    for(i=0; i<num_int; ++i) {
+	    for (i=0; i<num_int; ++i) {
 	    	if (best_dbm < td->rx_status->adapter[i].current_signal_dbm) {
-		    best_dbm = td->rx_status->adapter[i].current_signal_dbm;
-		    best_adapter = i;
-		}
+				best_dbm = td->rx_status->adapter[i].current_signal_dbm;
+				best_adapter = i;
+			}
 	    }
 //	    printf ("bestadapter: %d (%d dbm)\n",best_adapter, best_dbm);
-	    if (type[best_adapter] == 0) { // Atheros
-		// telemetry header (seqno and len)
-		memcpy(packet_buffer_ath + headers_atheros_len, &header, 6);
-		// telemetry data
-		memcpy(packet_buffer_ath + headers_atheros_len + 6, data, len);
-		if (len < 5) { // if telemetry payload is too short, pad to minimum length
-		    padlen = 5 - len;
-//		    fprintf(stderr, "padlen: %d ",padlen);
-		    memcpy(packet_buffer_ath + headers_atheros_len + 6 + len, dummydata, padlen);
-		}
-	        if (write(socks[best_adapter], &packet_buffer_ath, headers_atheros_len + 6 + len + padlen) < 0 ) fprintf(stderr, ".");
+	    if (type[best_adapter] == 0) { 
+			// Atheros
+			// telemetry header (seqno and len)
+			memcpy(packet_buffer_ath + headers_atheros_len, &header, sizeof(header));
+			// telemetry data
+			memcpy(packet_buffer_ath + headers_atheros_len + sizeof(header), p_send_data, send_data_length);
+			if (send_data_length < 5) { 
+				// if telemetry payload is too short, pad to minimum length
+				padlen = 5 - send_data_length;
+//			    fprintf(stderr, "padlen: %d ",padlen);
+				memcpy(packet_buffer_ath + headers_atheros_len + sizeof(header) + send_data_length, dummydata, padlen);
+			}
+	        if (write(socks[best_adapter], &packet_buffer_ath, 
+						headers_atheros_len + sizeof(header) + send_data_length + padlen) < 0 ) {
+				fprintf(stderr, ".");
+			}	
 	    } else { // Ralink
-		// telemetry header (seqno and len)
-		memcpy(packet_buffer_ral + headers_ralink_len, &header, 6);
-		// telemetry data
-		memcpy(packet_buffer_ral + headers_ralink_len + 6, data, len);
-		if (len < 18) { // if telemetry payload is too short, pad to minimum length
-		    padlen = 18 - len;
-//		    fprintf(stderr, "padlen: %d ",padlen);
-		    memcpy(packet_buffer_ral + headers_ralink_len + 6 + len, dummydata, padlen);
+			// telemetry header (seqno and len)
+			memcpy(packet_buffer_ral + headers_ralink_len, &header, sizeof(header));
+			// telemetry data
+			memcpy(packet_buffer_ral + headers_ralink_len + sizeof(header), p_send_data, send_data_length);
+			if (send_data_length < 18) { 
+				// if telemetry payload is too short, pad to minimum length
+				padlen = 18 - send_data_length;
+//			    fprintf(stderr, "padlen: %d ",padlen);
+				memcpy(packet_buffer_ral + headers_ralink_len + sizeof(header) + send_data_length, dummydata, padlen);
+			}
+			if (write(socks[best_adapter], &packet_buffer_ral, 
+						headers_ralink_len + sizeof(header) + send_data_length + padlen) < 0 ) {
+				fprintf(stderr, ".");
+			}	
 		}
-		if (write(socks[best_adapter], &packet_buffer_ral, headers_ralink_len + 6 + len + padlen) < 0 ) fprintf(stderr, ".");
-	    }
-	} else { // transmit on all interfaces
+	} else { 
+		// transmit on all interfaces
 	    int i;
 	    for(i=0; i<num_int; ++i) {
-			if (type[i] == 0) { // Atheros
-	//		    fprintf(stderr,"type: Atheros");
+			// Atheros
+			if (type[i] == 0) { 
+//		    	fprintf(stderr,"type: Atheros");
 				// telemetry header (seqno and len)
 				memcpy(packet_buffer_ath + headers_atheros_len, &header, 6);
 				// telemetry data
-				memcpy(packet_buffer_ath + headers_atheros_len + 6, data, len);
-	//		    fprintf(stderr," lendata:%d ",len);
-				if (len < 5) { // if telemetry payload is too short, pad to minimum length
-					padlen = 5 - len;
-		//			fprintf(stderr, "padlen: %d ",padlen);
-					memcpy(packet_buffer_ath + headers_atheros_len + 6 + len, dummydata, padlen);
+				memcpy(packet_buffer_ath + headers_atheros_len + 6, p_send_data, send_data_length);
+//			    fprintf(stderr," lendata:%d ",len);
+
+				// if telemetry payload is too short, pad to minimum length
+				if (send_data_length < 5) { 
+					padlen = 5 - send_data_length;
+//					fprintf(stderr, "padlen: %d ",padlen);
+					memcpy(packet_buffer_ath + headers_atheros_len + 6 + send_data_length, dummydata, padlen);
 				}
-	//		    int x = 0;
-	//		    int dumplen = 100;
-	//		    fprintf(stderr,"buf:");
-	//		    for (x=12;x < dumplen; x++) {
-	//			fprintf(stderr,"0x%02x ", packet_buffer[x]);
-	//		    }
-	//		    fprintf(stderr,"\n");
-	//		    fprintf(stderr," headers_atheros_len:%d ",headers_atheros_len);
-	//		    fprintf(stderr," writelen:%d ",headers_atheros_len + 4 + len);
-				if (write(socks[i], &packet_buffer_ath, headers_atheros_len + 6 + len + padlen) < 0 ) 
+				
+//			    int x = 0;
+//			    int dumplen = 100;
+//			    fprintf(stderr,"buf:");
+//			    for (x=12;x < dumplen; x++) {
+//				fprintf(stderr,"0x%02x ", packet_buffer[x]);
+//			    }
+//			    fprintf(stderr,"\n");
+//			    fprintf(stderr," headers_atheros_len:%d ",headers_atheros_len);
+//			    fprintf(stderr," writelen:%d ",headers_atheros_len + 4 + send_data_length);
+				if (write(socks[i], &packet_buffer_ath, headers_atheros_len + 6 + send_data_length + padlen) < 0 ) 
 					fprintf(stderr, ".");
-			} else { // Ralink
-	//		    fprintf(stderr,"type: Ralink");
+			} else { 
+				// Ralink
+//			    fprintf(stderr,"type: Ralink");
 				// telemetry header (seqno and len)
 				memcpy(packet_buffer_ral + headers_ralink_len, &header, 6);
 				// telemetry data
-				memcpy(packet_buffer_ral + headers_ralink_len + 6, data, len);
-				if (len < 18) { // pad to minimum length
-					padlen = 18 - len;
-		//			fprintf(stderr, "padlen: %d ",padlen);
-					memcpy(packet_buffer_ral + headers_ralink_len + 6 + len, dummydata, padlen);
+				memcpy(packet_buffer_ral + headers_ralink_len + 6, p_send_data, send_data_length);
+				if (send_data_length < 18) { 
+					// pad to minimum length
+					padlen = 18 - send_data_length;
+//					fprintf(stderr, "padlen: %d ",padlen);
+					memcpy(packet_buffer_ral + headers_ralink_len + 6 + send_data_length, dummydata, padlen);
 				}
-				if (write(socks[i], &packet_buffer_ral, headers_ralink_len + 6 + len + padlen) < 0 ) fprintf(stderr, ".");
+				if (write(socks[i], &packet_buffer_ral, 
+							headers_ralink_len + 6 + send_data_length + padlen) < 0 ) {
+					fprintf(stderr, ".");
+				}
+					
 			}
 	    }
+	}
+	if (encrypt_enable) {
+		free(p_send_data);
 	}
 }
 
@@ -281,9 +325,142 @@ long long current_timestamp() {
     return milliseconds;
 }
 
-int main(int argc, char *argv[]) {
+void print_mavlink_debug_info() {
+	switch (msg.msgid){
+	case MAVLINK_MSG_ID_SYS_STATUS:
+		fprintf(stderr, "SYS_STATUS ");
+		break;
+	case MAVLINK_MSG_ID_HEARTBEAT:
+		fprintf(stderr, "HEARTBEAT ");
+		break;
+	case MAVLINK_MSG_ID_COMMAND_ACK:
+		fprintf(stderr, "COMMAND_ACK:%d ",
+					mavlink_msg_command_ack_get_command(&msg));
+		break;
+	case MAVLINK_MSG_ID_COMMAND_INT:
+		fprintf(stderr, "COMMAND_INT:%d ",
+					mavlink_msg_command_int_get_command(&msg));
+		break;
+	case MAVLINK_MSG_ID_EXTENDED_SYS_STATE:
+		fprintf(stderr, "EXTENDED_SYS_STATE: vtol_state:%d, landed_state:%d",
+					mavlink_msg_extended_sys_state_get_vtol_state(&msg),
+					mavlink_msg_extended_sys_state_get_landed_state(&msg));
+		break;
+	case MAVLINK_MSG_ID_LOCAL_POSITION_NED:
+		fprintf(stderr, "LOCAL_POSITION_NED ");
+		break;
+	case MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED:
+		fprintf(stderr, "POSITION_TARGET_LOCAL_NED ");
+		break;
+	case MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT:
+		fprintf(stderr, "POSITION_TARGET_GLOBAL_INT ");
+		break;
+	case MAVLINK_MSG_ID_ESTIMATOR_STATUS:
+		fprintf(stderr, "ESTIMATOR_STATUS ");
+		break;
+	case MAVLINK_MSG_ID_HOME_POSITION:
+		fprintf(stderr, "HIGHRES_IMU ");
+		break;
+	case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
+		fprintf(stderr, "NAMED_VALUE_FLOAT ");
+		break;
+	case MAVLINK_MSG_ID_NAMED_VALUE_INT:
+		fprintf(stderr, "NAMED_VALUE_INT ");
+		break;
+	case MAVLINK_MSG_ID_PARAM_VALUE:
+		fprintf(stderr, "PARAM_VALUE ");
+		break;
+	case MAVLINK_MSG_ID_PARAM_SET:
+		fprintf(stderr, "PARAM_SET ");
+		break;
+	case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
+		fprintf(stderr, "PARAM_REQUEST_READ ");
+		break;
+	case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
+		fprintf(stderr, "PARAM_REQUEST_LIST ");
+		break;
+	case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
+		fprintf(stderr, "RC_CHANNELS_OVERRIDE ");
+		break;
+	case MAVLINK_MSG_ID_RC_CHANNELS:
+		fprintf(stderr, "RC_CHANNELS ");
+		break;
+	case MAVLINK_MSG_ID_MANUAL_CONTROL:
+		fprintf(stderr, "MANUAL_CONTROL ");
+		break;
+	case MAVLINK_MSG_ID_COMMAND_LONG:
+		fprintf(stderr, "COMMAND_LONG:%d ",
+					mavlink_msg_command_long_get_command(&msg));
+		break;
+	case MAVLINK_MSG_ID_STATUSTEXT:
+		fprintf(stderr, "STATUSTEXT: severity:%d ",
+					mavlink_msg_statustext_get_severity(&msg));
+		break;
+	case MAVLINK_MSG_ID_SYSTEM_TIME:
+		fprintf(stderr, "SYSTEM_TIME ");
+		break;
+	case MAVLINK_MSG_ID_PING:
+		fprintf(stderr, "PING ");
+		break;
+	case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL:
+		fprintf(stderr, "CHANGE_OPERATOR_CONTROL ");
+		break;
+	case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL_ACK:
+		fprintf(stderr, "CHANGE_OPERATOR_CONTROL_ACK ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
+		fprintf(stderr, "MISSION_WRITE_PARTIAL_LIST ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_ITEM:
+		fprintf(stderr, "MISSION_ITEM ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_REQUEST:
+		fprintf(stderr, "MISSION_REQUEST ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_SET_CURRENT:
+		fprintf(stderr, "MISSION_SET_CURRENT ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_CURRENT:
+		fprintf(stderr, "MISSION_CURRENT ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
+		fprintf(stderr, "MISSION_REQUEST_LIST ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_COUNT:
+		fprintf(stderr, "MISSION_COUNT ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_CLEAR_ALL:
+		fprintf(stderr, "MISSION_CLEAR_ALL ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_ACK:
+		fprintf(stderr, "MISSION_ACK ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_ITEM_INT:
+		fprintf(stderr, "MISSION_ITEM_INT ");
+		break;
+	case MAVLINK_MSG_ID_MISSION_REQUEST_INT:
+		fprintf(stderr, "MISSION_REQUEST_INT ");
+		break;
+	case MAVLINK_MSG_ID_SET_MODE:
+		fprintf(stderr, "SET_MODE ");
+		break;
+	case MAVLINK_MSG_ID_REQUEST_DATA_STREAM:
+		fprintf(stderr, "REQUEST_DATA_STREAM ");
+		break;
+	case MAVLINK_MSG_ID_DATA_STREAM:
+		fprintf(stderr, "DATA_STREAM ");
+		break;
+	default:
+		fprintf(stderr, "OTHER MESSAGE ID:%d ",msg.msgid);
+		break;
+	}
+	fprintf(stderr, "\n");
+}
+
+int main(int argc, char *argv[]) 
+{
     char fBrokenSocket = 0;
-    char line[100], path[100];
+    char line[128], path[128];
     FILE* procfile;
 
     int pcnt = 0;
@@ -297,9 +474,11 @@ int main(int argc, char *argv[]) {
     int param_debug = 0;
 	int param_wifimode = 0;
 	int param_ldpc = 0;
+	int param_encrypt_enable = 0;
+	char * param_encrypt_password = NULL;
 
-    uint8_t buf[402]; // data read from stdin
-    uint8_t mavlink_message[263];
+    uint8_t buf[512]; // data read from stdin
+    uint8_t mavlink_message[512];
 
     uint16_t len_msg = 0;
     uint32_t seqno = 0;
@@ -324,10 +503,14 @@ int main(int argc, char *argv[]) {
 	param_transmission_mode = iniparser_getint(ini, "tx_telemetry:mode", 0);
 	param_wifimode = (0 == iniparser_getint(ini, "tx:wifimode", 0))? 0: 1;
 	param_ldpc = iniparser_getint(ini, "tx_telemetry:ldpc", 0);
-	
-	fprintf(stderr, "%s Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, wifimode %d, ldpc %d, nic %s\n",
+	param_encrypt_enable = iniparser_getint(ini, "tx_telemetry:encrypt", 0);
+	if (param_encrypt_enable == 1) {
+		param_encrypt_password = (char *)iniparser_getstring(ini, "tx_telemetry:password", NULL);
+	}
+	fprintf(stderr, "%s Config: cts %d, port %d, retrans %d, proto %d, rate %d, mode %d, wifimode %d, ldpc %d, encrypt %d, nic %s\n",
 			argv[0], param_cts, param_port, param_retransmissions, param_telemetry_protocol,
 			param_data_rate, param_transmission_mode, param_wifimode, param_ldpc,
+			param_encrypt_enable,
 			iniparser_getstring(ini, "tx_telemetry:nic", NULL)
 	);
     int x = optind;
@@ -343,20 +526,23 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr,"ERROR: opening %s failed!\n", path); 
 		return 0;
 	}
-	fgets(line, 100, procfile); // read the first line
-
-	if (strncmp(line, "DRIVER=ath9k", 12) == 0) { // it's an atheros card
+	
+	// read the first line
+	fgets(line, 100, procfile); 
+	if (strncmp(line, "DRIVER=ath9k", 12) == 0) { 
+		// it's an atheros card
 		fprintf(stderr, "tx_telemetry: Atheros card detected\n");
 		type[num_interfaces] = 0;
-	} else { // ralink
+	} else { 
+		// ralink
 		fprintf(stderr, "tx_telemetry: Ralink (or other) card detected\n");
 		type[num_interfaces] = 1;
 	}
-	socks[num_interfaces] = open_sock(iniparser_getstring(ini, "tx_telemetry:nic", NULL));
+	socks[num_interfaces] = open_sock((char *)iniparser_getstring(ini, "tx_telemetry:nic", NULL));
 	++num_interfaces;
 	++x;
 	fclose(procfile);
-	usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
+	usleep(10000); 
 
 
     // initialize telemetry shared mem for rssi based transmission (-y 1)
@@ -376,7 +562,8 @@ int main(int argc, char *argv[]) {
 			case 24: u8aRadiotapHeader[8]=0x30; break;
 			case 36: u8aRadiotapHeader[8]=0x48; break;
 			case 48: u8aRadiotapHeader[8]=0x60; break;
-			default: fprintf(stderr, "tx_telemetry: ERROR: Wrong or no data rate specified\n"); exit(1); break;
+			default: fprintf(stderr, "tx_telemetry: ERROR: Wrong or no data rate specified\n"); 
+				exit(1); break;
 		}
 	} else if (param_wifimode == 1) {
 		u8aRadiotapHeader80211n[12] = (uint8_t) param_data_rate;
@@ -389,7 +576,8 @@ int main(int argc, char *argv[]) {
     u8aIeeeHeader_data_short[4] = port_encoded;
 
     // for Atheros use data frames if CTS protection enabled or rts if disabled
-    // CTS protection causes R/C transmission to stop for some reason, always use rts frames (i.e. no cts protection)
+    // CTS protection causes R/C transmission to stop for some reason, 
+	// always use rts frames (i.e. no cts protection)
 	
 	int rtheader_length = 0;
 	if (param_wifimode == 0) {	// 802.11g
@@ -410,15 +598,18 @@ int main(int argc, char *argv[]) {
 	}
 	
     if (param_cts == 1) { // use data frames
-		memcpy(headers_atheros + rtheader_length, u8aIeeeHeader_data, sizeof(u8aIeeeHeader_data)); // ieee header
+		memcpy(headers_atheros + rtheader_length, 
+				u8aIeeeHeader_data, sizeof(u8aIeeeHeader_data)); // ieee header
 		headers_atheros_len = rtheader_length + sizeof(u8aIeeeHeader_data);
     } else { // use rts frames
-		memcpy(headers_atheros + rtheader_length, u8aIeeeHeader_rts, sizeof(u8aIeeeHeader_rts)); // ieee header
+		memcpy(headers_atheros + rtheader_length, 
+				u8aIeeeHeader_rts, sizeof(u8aIeeeHeader_rts)); // ieee header
 		headers_atheros_len = rtheader_length + sizeof(u8aIeeeHeader_rts);
     }
 
     // for Ralink always use data short
-    memcpy(headers_ralink + sizeof(u8aRadiotapHeader), u8aIeeeHeader_data_short, sizeof(u8aIeeeHeader_data_short));// ieee header
+    memcpy(headers_ralink+sizeof(u8aRadiotapHeader), 
+			u8aIeeeHeader_data_short, sizeof(u8aIeeeHeader_data_short));// ieee header
     headers_ralink_len = sizeof(u8aRadiotapHeader) + sizeof(u8aIeeeHeader_data_short);
 
     // radiotap and ieee headers
@@ -435,173 +626,48 @@ int main(int argc, char *argv[]) {
 			prev_time_read = current_timestamp();
 			fprintf(stderr, "read delta:%lldms bytes:%d ",took_read,inl);
 		}
-
 		if (inl < 0) { 
 			fprintf(stderr,"tx_telemetry: ERROR: reading stdin"); 
 			return 1; 
-		}
-		if (inl > 350) { 
+		} else if (inl > 350) { 
 			fprintf(stderr,"tx_telemetry: Warning: Input data > 300 bytes"); 
 			continue; 
-		}
-		if (inl == 0) { 
+		} else if (inl == 0) { 
 			fprintf(stderr, "tx_telemetry: Warning: Lost connection to stdin\n"); 
 			usleep(1e5); 
 			continue;
 		} // EOF
 
-		if (param_telemetry_protocol == 0) { // parse Mavlink
-			int i = 0;
-			for(i=0; i < inl; i++) {
+		if (param_telemetry_protocol == 0) { 
+			// parse Mavlink
+			for(int i=0; i<inl; i++) {
 				uint8_t c = buf[i];
-				if (mavlink_parse_char(0, c, &msg, &status)) {
-					if (param_debug == 1) {
-						long long took = current_timestamp() - prev_time;
-						prev_time = current_timestamp();
-						fprintf(stderr, "Msg delta:%lldms seq:%d sysid:%d, compid:%d  ",took, msg.seq, msg.sysid, msg.compid);
-						switch (msg.msgid){
-						case MAVLINK_MSG_ID_SYS_STATUS:
-							fprintf(stderr, "SYS_STATUS ");
-							break;
-						case MAVLINK_MSG_ID_HEARTBEAT:
-							fprintf(stderr, "HEARTBEAT ");
-							break;
-						case MAVLINK_MSG_ID_COMMAND_ACK:
-							fprintf(stderr, "COMMAND_ACK:%d ",mavlink_msg_command_ack_get_command(&msg));
-							break;
-						case MAVLINK_MSG_ID_COMMAND_INT:
-							fprintf(stderr, "COMMAND_INT:%d ",mavlink_msg_command_int_get_command(&msg));
-							break;
-						case MAVLINK_MSG_ID_EXTENDED_SYS_STATE:
-							fprintf(stderr, "EXTENDED_SYS_STATE: vtol_state:%d, landed_state:%d",mavlink_msg_extended_sys_state_get_vtol_state(&msg),mavlink_msg_extended_sys_state_get_landed_state(&msg));
-							break;
-						case MAVLINK_MSG_ID_LOCAL_POSITION_NED:
-							fprintf(stderr, "LOCAL_POSITION_NED ");
-							break;
-						case MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED:
-							fprintf(stderr, "POSITION_TARGET_LOCAL_NED ");
-							break;
-						case MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT:
-							fprintf(stderr, "POSITION_TARGET_GLOBAL_INT ");
-							break;
-						case MAVLINK_MSG_ID_ESTIMATOR_STATUS:
-							fprintf(stderr, "ESTIMATOR_STATUS ");
-							break;
-						case MAVLINK_MSG_ID_HOME_POSITION:
-							fprintf(stderr, "HIGHRES_IMU ");
-							break;
-						case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
-							fprintf(stderr, "NAMED_VALUE_FLOAT ");
-							break;
-						case MAVLINK_MSG_ID_NAMED_VALUE_INT:
-							fprintf(stderr, "NAMED_VALUE_INT ");
-							break;
-						case MAVLINK_MSG_ID_PARAM_VALUE:
-							fprintf(stderr, "PARAM_VALUE ");
-							break;
-						case MAVLINK_MSG_ID_PARAM_SET:
-							fprintf(stderr, "PARAM_SET ");
-							break;
-						case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
-							fprintf(stderr, "PARAM_REQUEST_READ ");
-							break;
-						case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
-							fprintf(stderr, "PARAM_REQUEST_LIST ");
-							break;
-						case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
-							fprintf(stderr, "RC_CHANNELS_OVERRIDE ");
-							break;
-						case MAVLINK_MSG_ID_RC_CHANNELS:
-							fprintf(stderr, "RC_CHANNELS ");
-							break;
-						case MAVLINK_MSG_ID_MANUAL_CONTROL:
-							fprintf(stderr, "MANUAL_CONTROL ");
-							break;
-						case MAVLINK_MSG_ID_COMMAND_LONG:
-							fprintf(stderr, "COMMAND_LONG:%d ",mavlink_msg_command_long_get_command(&msg));
-							break;
-						case MAVLINK_MSG_ID_STATUSTEXT:
-							fprintf(stderr, "STATUSTEXT: severity:%d ",mavlink_msg_statustext_get_severity(&msg));
-							break;
-						case MAVLINK_MSG_ID_SYSTEM_TIME:
-							fprintf(stderr, "SYSTEM_TIME ");
-							break;
-						case MAVLINK_MSG_ID_PING:
-							fprintf(stderr, "PING ");
-							break;
-						case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL:
-							fprintf(stderr, "CHANGE_OPERATOR_CONTROL ");
-							break;
-						case MAVLINK_MSG_ID_CHANGE_OPERATOR_CONTROL_ACK:
-							fprintf(stderr, "CHANGE_OPERATOR_CONTROL_ACK ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
-							fprintf(stderr, "MISSION_WRITE_PARTIAL_LIST ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_ITEM:
-							fprintf(stderr, "MISSION_ITEM ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_REQUEST:
-							fprintf(stderr, "MISSION_REQUEST ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_SET_CURRENT:
-							fprintf(stderr, "MISSION_SET_CURRENT ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_CURRENT:
-							fprintf(stderr, "MISSION_CURRENT ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
-							fprintf(stderr, "MISSION_REQUEST_LIST ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_COUNT:
-							fprintf(stderr, "MISSION_COUNT ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_CLEAR_ALL:
-							fprintf(stderr, "MISSION_CLEAR_ALL ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_ACK:
-							fprintf(stderr, "MISSION_ACK ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_ITEM_INT:
-							fprintf(stderr, "MISSION_ITEM_INT ");
-							break;
-						case MAVLINK_MSG_ID_MISSION_REQUEST_INT:
-							fprintf(stderr, "MISSION_REQUEST_INT ");
-							break;
-						case MAVLINK_MSG_ID_SET_MODE:
-							fprintf(stderr, "SET_MODE ");
-							break;
-						case MAVLINK_MSG_ID_REQUEST_DATA_STREAM:
-							fprintf(stderr, "REQUEST_DATA_STREAM ");
-							break;
-						case MAVLINK_MSG_ID_DATA_STREAM:
-							fprintf(stderr, "DATA_STREAM ");
-							break;
-						default:
-							fprintf(stderr, "OTHER MESSAGE ID:%d ",msg.msgid);
-							break;
-						}
-						fprintf(stderr, "\n");
-					}
-					len_msg = mavlink_msg_to_send_buffer(mavlink_message, &msg);
-					if (param_retransmissions == 1) {
-						sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
-					} else { // send twice
-						sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
-						usleep(500); // wait 0.5ms to increase probability of 2nd packet coming through
-						sendpacket(seqno, len_msg, &td, param_transmission_mode, num_interfaces, mavlink_message);
-					}
-					pcnt++;
-					seqno++;
+				if (!mavlink_parse_char(0, c, &msg, &status)) {
+					continue;
 				}
+				if (param_debug == 1) {
+					long long took = current_timestamp() - prev_time;
+					prev_time = current_timestamp();
+					fprintf(stderr, "Msg delta:%lldms seq:%d  sysid:%d, compid:%d  ",
+												took, msg.seq, msg.sysid, msg.compid);
+					print_mavlink_debug_info();
+				}
+				len_msg = mavlink_msg_to_send_buffer(mavlink_message, &msg);
+				for (int k=0; k<param_retransmissions; k++) {
+					sendpacket(seqno, len_msg, &td, param_transmission_mode, 
+											num_interfaces, mavlink_message,
+											param_encrypt_enable, param_encrypt_password);
+					usleep(300*(k+1)*1.4);
+				}
+				pcnt++;
+				seqno++;
 			}
-		} else { // generic telemetry handling
-				if (param_retransmissions == 1) {
-					sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
-			} else { // send twice
-				sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
-				usleep(500); // wait 0.5ms to increase probability of 2nd packet coming through
-				sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf);
+		} else { 
+			// generic telemetry handling
+			for (int k=0; k<param_retransmissions; k++) {
+				sendpacket(seqno, inl, &td, param_transmission_mode, num_interfaces, buf,
+										param_encrypt_enable, param_encrypt_password);
+				usleep(300*(k+1)*1.4);
 			}
 			pcnt++;
 			seqno++;
