@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
 	param_packet_length = iniparser_getint(ini, "rx:packetsize", 0);		
 	param_encrypt_enable = iniparser_getint(ini, "rx:encrypt", 0);
 	if (param_encrypt_enable == 1) {
-		param_encrypt_password = (char *)iniparser_getstring(ini, "tx:password", NULL);
+		param_encrypt_password = (char *)iniparser_getstring(ini, "rx:password", NULL);
 		//param_packet_length -= 4;	// xxtea-c library has a 4 bytes header
 	}
 	if ((param_packet_length % 4) != 0) {

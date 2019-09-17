@@ -347,9 +347,9 @@ int main(int argc, char *argv[])
 	++num_interfaces;
 	usleep(10000); // wait a bit between configuring interfaces to reduce Atheros and Pi USB flakiness
 	
-	param_encrypt_enable = iniparser_getint(ini, "rssitx:encrypt", 0);
+	param_encrypt_enable = iniparser_getint(ini, "rssirx:encrypt", 0);
 	if (param_encrypt_enable == 1) {
-		param_encrypt_password = (char *)iniparser_getstring(ini, "rssitx:password", NULL);
+		param_encrypt_password = (char *)iniparser_getstring(ini, "rssirx:password", NULL);
 	}
 	
 	rx_status = status_memory_open();
