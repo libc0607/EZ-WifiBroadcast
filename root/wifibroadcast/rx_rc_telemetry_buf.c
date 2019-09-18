@@ -40,13 +40,15 @@ typedef struct {
 	int m_nRadiotapFlags;
 } __attribute__((packed)) PENUMBRA_RADIOTAP_DATA;
 
+#define BUF_COUNT 100
+#define BUF_SIZE 400
 typedef struct {
 	uint32_t seq;
 	uint16_t len;
 	uint8_t filled;
-	char payload[400];
+	char payload[BUF_SIZE];
 } buffer_t;
-buffer_t buffer[100];
+buffer_t buffer[BUF_COUNT];
 
 int flagHelp = 0;
 int param_port = 0;
@@ -291,7 +293,7 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
 
     int already_received = 0;
     int t;
-    for (t=0;t<100;t++) {
+    for (t=0;t<BUF_COUNT;t++) {
 		if (buffer[t].seq == header.seqnumber) { // seqnum has already been received
 			already_received = 1;
 //		    fprintf(stderr,"already received\n");
@@ -303,7 +305,7 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
 		int done = 0;
 		uint8_t * p_write_data;
 		size_t write_data_length;
-		for (y=0;y<100;y++) {
+		for (y=0; y<BUF_COUNT; y++) {
 			if (buffer[y].filled == 0) { 
 				// buffer is empty, use it
 				// decrypt if needed
@@ -333,7 +335,7 @@ void receive_packet(monitor_interface_t *interface, int adapter_no)
 			}
 		}
 		if (done == 0) { // no empty buffer found, we just use a filled one
-			int randomnum = rand() % 100;
+			int randomnum = rand() % BUF_COUNT;
 			// decrypt if needed
 			if (param_encrypt_enable) {
 				p_write_data = xxtea_decrypt(pu8Payload, header.length, 
@@ -432,7 +434,7 @@ int main (int argc, char *argv[])
 	struct sockaddr_in udp_bind_addr;	
 	int udp_sockfd, slen = sizeof(udp_send_addr);
 
-	for (p=0; p<100; p++) {
+	for (p=0; p<BUF_COUNT; p++) {
 		bzero(&(buffer[p]), sizeof(buffer_t));
 	}
 	char *file = argv[1];
@@ -563,7 +565,7 @@ int main (int argc, char *argv[])
 			// if we didn't write for the last N times (because seqnums were ooo or lost) 
 			// set lastseq to lowest seq in buffer
 			int lowestseq = 2000000000; // just something very high
-    		for (p=0; p<100; p++) {
+    		for (p=0; p<BUF_COUNT; p++) {
 				// find out lowest filled seqnum here and write it to lastseq
 				if (buffer[p].filled == 1) { // only do stuff if buffer filled (i.e. seqnum is valid)
 					if (buffer[p].seq < lowestseq) {
@@ -605,7 +607,7 @@ int main (int argc, char *argv[])
 			}
 			// count filled buffers
 			abuffers_filled=0;
-			for (p=0;p<100;p++) {
+			for (p=0; p<BUF_COUNT; p++) {
 				if (buffer[p].filled == 1) {
 					abuffers_filled++;
 				}
@@ -615,7 +617,7 @@ int main (int argc, char *argv[])
 	    }
 	    received_packet = 0;
 
-	    for (p=0;p<100;p++) {
+	    for (p=0; p<BUF_COUNT; p++) {
 			if (buffer[p].filled == 1) { // only do stuff if buffer filled (i.e. seqnum is valid)
 	//		    fprintf(stderr,"buffer[%d].seq:%d (lastseq:%d)\n",p,buffer[p].seq,lastseq);
 				atleastonebufferfilled = 1;
