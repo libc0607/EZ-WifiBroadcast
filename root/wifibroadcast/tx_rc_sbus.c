@@ -427,7 +427,7 @@ int main (int argc, char *argv[])
 	int ieeeheader_length = packet_ieeeheader_init(rtheader_length, buf, ini);
 	
 	// set length
-	framedata.length = framedata_body_length;
+	framedata.length = htonl(framedata_body_length);
 	
 	// Main loop
 	uint32_t seqno = 0;
@@ -471,7 +471,7 @@ int main (int argc, char *argv[])
 		
 			// 2.3 calculate crc32: fill 0xffffffff first
 			framedata.crc = 0xffffffff;
-			framedata.crc = xcrc32(buf+full_header_length, sizeof(framedata), 0xffffffff);
+			framedata.crc = htonl(xcrc32(buf+full_header_length, sizeof(framedata), 0xffffffff));
 			
 			// 2.4 encrypt full packet
 			encrypted_data_length = encrypt_payload(buf+full_header_length, 
