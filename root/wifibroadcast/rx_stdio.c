@@ -197,5 +197,7 @@ int main(int argc, char *argv[])
 			// to-do: write prd data to shmem
 		}
 	}
+	free(buf);
+	iniparser_freedict(ini);
 	return 0;
 }
