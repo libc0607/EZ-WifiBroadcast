@@ -72,6 +72,10 @@ add_executable(tx_test tx_test.c)
 target_link_libraries(tx_test rt pcap)
 install (TARGETS tx_test DESTINATION bin)
 
+add_executable(tx_stdio tx_stdio.c)
+target_link_libraries(tx_stdio rt pcap iniparser)
+install (TARGETS tx_stdio DESTINATION bin)
+
 add_executable(sysair_forward  sysair_forward.c )
 target_link_libraries(sysair_forward rt pcap iniparser)
 install (TARGETS sysair_forward DESTINATION bin)
