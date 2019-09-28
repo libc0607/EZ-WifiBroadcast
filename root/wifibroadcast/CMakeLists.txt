@@ -76,6 +76,10 @@ add_executable(tx_stdio tx_stdio.c)
 target_link_libraries(tx_stdio rt pcap iniparser)
 install (TARGETS tx_stdio DESTINATION bin)
 
+add_executable(rx_stdio rx_stdio.c lib.c radiotap.c)
+target_link_libraries(rx_stdio rt pcap iniparser)
+install (TARGETS rx_stdio DESTINATION bin)
+
 add_executable(sysair_forward  sysair_forward.c )
 target_link_libraries(sysair_forward rt pcap iniparser)
 install (TARGETS sysair_forward DESTINATION bin)
