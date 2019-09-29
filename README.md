@@ -1,4 +1,4 @@
-# YJSNPI-Broadcast
+# YJSNPI-Broadcast (Archived)
 ![Senpai-of-the-animals](https://github.com/libc0607/YJSNPI-Broadcast-archive/blob/pics/yjsnpi-broadcast.png)  
   
   
