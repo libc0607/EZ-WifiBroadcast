@@ -557,12 +557,7 @@ int main(int argc, char *argv[]) {
 		} else if (iniparser_getint(ini, "tx:ldpc", 0) == 1) {
 			param_wifi_ldpc = 1;
 		}
-		if (iniparser_getint(ini, "tx:stbc", 0) == 0) {
-			param_wifi_stbc = 0;
-		} else if (iniparser_getint(ini, "tx:stbc", 0) == 1) {
-			param_wifi_stbc = 1;
-		}
-		
+		param_wifi_stbc = iniparser_getint(ini, "tx:stbc", 0);
 	} 
 
 	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, transmode %d, wifimode %d, nic %s, encrypt %d\n",
