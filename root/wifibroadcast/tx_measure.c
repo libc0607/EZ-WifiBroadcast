@@ -154,6 +154,7 @@ void usage(void) {
 		"frametype=0\t\t\t# Frame type to send. 0 = DATA short, 1 = DATA standard, 2 = RTS\n"
 		"wifimode=0\t\t\t# Wi-Fi mode. 0=802.11g 0=802.11n\n"
 		"ldpc=0\t\t\t\t# 1-Use LDPC encode, 0-default. Experimental. Only valid when wifimode=n and both your Wi-Fi cards support LDPC.\n"
+		"stbc=0\t\t\t\t# 0-default, 1-1 STBC stream, 2-2 STBC streams, 3-3 STBC streams. Only valid when wifimode=n and both your Wi-Fi cards support STBC.\n"
 		"rate=6\t\t\t\t# When wifimode=g, data rate to send frames with. Choose 1,2,5,6,11,12,18,24,36 Mbit\n"
 		"\t\t\t\t# When wifimode=n, mcs index, 0~7\n"
 		"mode=0\t\t\t\t# Transmission mode. 0 = send on all interfaces, 1 = send only on interface with best RSSI\n"
@@ -177,12 +178,14 @@ typedef struct {
 /* 
 packet_header: buffer
 type: 0-datashort, 1-data, 2-rts	
-mode: 0-802.11g, 1-802.11n, 2-802.11n with ldpc
+mode: 0-802.11g, 1-802.11n
+ldpc: 0-disable, 1-802.11n with ldpc
+stbc: 0-disable, 1-1 STBC stream, 2- 2 STBC streams, 3 - 3 STBC streams
 rate: 1,2,5,6,11,12,18,24,36,48 when mode=0
 	  0,1,2,3,4,5,6,7 when mode=1 or 2
 port: port
 */
-int packet_header_init(uint8_t *packet_header, int type, int mode, int rate, int port) 
+int packet_header_init(uint8_t *packet_header, int type, int mode, int ldpc, int stbc, int rate, int port) 
 {
 	u8 *pu8 = packet_header;
 	int port_encoded = 0;
@@ -199,19 +202,43 @@ int packet_header_init(uint8_t *packet_header, int type, int mode, int rate, int
 			case 24: u8aRadiotapHeader[8]=0x30; break;
 			case 36: u8aRadiotapHeader[8]=0x48; break;
 			case 48: u8aRadiotapHeader[8]=0x60; break;
+			case 54: u8aRadiotapHeader[8]=0x6C; break;
 			default:
 				fprintf(stderr, "ERROR: Wrong or no data rate specified (see -d parameter)\n");
 				exit(1);
 			break;
 		}
-	} else if (mode == 2) {					// 802.11n + ldpc
-		u8aRadiotapHeader80211n[10] |= 0x10;
-		u8aRadiotapHeader80211n[11] |= 0x10;
-		u8aRadiotapHeader80211n[12] = (uint8_t)rate;
 	} else if (mode == 1) {					// 802.11n
-		u8aRadiotapHeader80211n[10] &= (~0x10);
-		u8aRadiotapHeader80211n[11] &= (~0x10);
-		u8aRadiotapHeader80211n[12] = (uint8_t)rate;
+		if (ldpc == 0) {
+			u8aRadiotapHeader80211n[10] &= (~0x10);
+			u8aRadiotapHeader80211n[11] &= (~0x10);
+			u8aRadiotapHeader80211n[12] = (uint8_t)rate;
+		} else {
+			u8aRadiotapHeader80211n[10] |= 0x10;
+			u8aRadiotapHeader80211n[11] |= 0x10;
+			u8aRadiotapHeader80211n[12] = (uint8_t)rate;
+		}
+		switch (stbc) {
+		case 1: 
+			u8aRadiotapHeader80211n[10] |= 0x20;
+			u8aRadiotapHeader80211n[11] |= (0x1 << 5);
+		break; 
+		case 2:
+			u8aRadiotapHeader80211n[10] |= 0x20;
+			u8aRadiotapHeader80211n[11] |= (0x2 << 5);
+		break;
+		case 3: 
+			u8aRadiotapHeader80211n[10] |= 0x20;
+			u8aRadiotapHeader80211n[11] |= (0x3 << 5);
+		break;
+		case 0:
+		default:
+			// clear all bits
+			u8aRadiotapHeader80211n[10] &= (~0x20);
+			u8aRadiotapHeader80211n[11] &= (~0x60);
+		break;
+		}
+		
 	}
 
 	// copy to buf
@@ -488,6 +515,8 @@ int main(int argc, char *argv[]) {
     int param_data_rate = 99;
     int param_transmission_mode = 0;
 	int param_wifi_mode = 0;
+	int param_wifi_ldpc = 0;
+	int param_wifi_stbc = 0;
 	int param_encrypt_enable = 0;
 	char * param_encrypt_password = NULL;
 	
@@ -524,10 +553,16 @@ int main(int argc, char *argv[]) {
 		param_wifi_mode = 0;
 	} else if (1 == iniparser_getint(ini, "tx:wifimode", 0)) {
 		if (iniparser_getint(ini, "tx:ldpc", 0) == 0) {
-			param_wifi_mode = 1;
+			param_wifi_ldpc = 0;
 		} else if (iniparser_getint(ini, "tx:ldpc", 0) == 1) {
-			param_wifi_mode = 2;
+			param_wifi_ldpc = 1;
 		}
+		if (iniparser_getint(ini, "tx:stbc", 0) == 0) {
+			param_wifi_stbc = 0;
+		} else if (iniparser_getint(ini, "tx:stbc", 0) == 1) {
+			param_wifi_stbc = 1;
+		}
+		
 	} 
 
 	fprintf(stderr, "%s Config: packet %d/%d/%d, port %d, type %d, rate %d, transmode %d, wifimode %d, nic %s, encrypt %d\n",
@@ -552,7 +587,7 @@ int main(int argc, char *argv[]) {
 		return (1);
     }
 
-    packet_header_length = packet_header_init(packet_transmit_buffer, param_packet_type, param_wifi_mode, param_data_rate, param_port);
+    packet_header_length = packet_header_init(packet_transmit_buffer, param_packet_type, param_wifi_mode, param_wifi_ldpc, param_wifi_stbc, param_data_rate, param_port);
     fifo_init(fifo, param_fifo_count, param_data_packets_per_block);
     fifo_open(fifo, param_fifo_count);
     fifo_create_select_set(fifo, param_fifo_count, &fifo_set, &max_fifo_fd);
